@@ -29,7 +29,9 @@
 
 完整安装 / 更新 / 排障见 [docs/deploy.md](../docs/deploy.md)。
 
-> 2026-11-27 用 `plugin_manager` 装到本机 `desktop` profile 并验证过 Host 与 UI。**目录改名后 profile 里那条 link 已失效**：先在插件面板卸载旧记录，再按上面的路径重装；装好后刷新页面（Cmd+R）让浏览器加载客户端模块。
+> 2026-11-27 已用 `plugin_manager` 重新装到本机 `desktop` profile（`application: applied`，bundle `dsh-business-cards@0.1.0` 已启用，link 指向本目录），Host 工具已生效。侧栏若还没出现「人脉助手」，**刷新页面（Cmd+R）**让浏览器加载客户端模块。
+>
+> 源码仓库：[github.com/shlan28/dsh-business-agent](https://github.com/shlan28/dsh-business-agent)（本目录即仓库根）。
 
 ## 使用
 
