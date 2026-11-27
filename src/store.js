@@ -29,7 +29,7 @@ export const LIMITS = {
   researchEntries: 40,
   researchTitle: 120,
   sources: 8,
-  chatEntries: 200,
+  chatEntries: 2000,
   chatText: 8_000,
 }
 
@@ -722,7 +722,12 @@ export class Store {
     try {
       value = normalizeChat(JSON.parse(await fs.readFile(this.chatFile(id), 'utf8')))
     } catch {
-      value = emptyChat()
+      // 主文件坏了/丢了：先试同目录的 .bak，再退回空。
+      try {
+        value = normalizeChat(JSON.parse(await fs.readFile(`${this.chatFile(id)}.bak`, 'utf8')))
+      } catch {
+        value = emptyChat()
+      }
     }
     this.chatCache.set(id, value)
     return value
@@ -748,6 +753,12 @@ export class Store {
       const tmp = `${file}.${process.pid}.${Date.now()}.tmp`
       await fs.writeFile(tmp, JSON.stringify(chat))
       await fs.rename(tmp, file)
+      try {
+        // 写成功后留一份同内容备份：主文件以后坏了还能回读。
+        await fs.copyFile(file, `${file}.bak`)
+      } catch {
+        // 备份失败不影响本次写入。
+      }
     })
     return value
   }
@@ -767,6 +778,7 @@ export class Store {
     chat.seq = 0
     await this.enqueue(async () => {
       await fs.rm(this.chatFile(id), { force: true })
+      await fs.rm(`${this.chatFile(id)}.bak`, { force: true })
     })
     return chat
   }

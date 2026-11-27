@@ -118,6 +118,67 @@ export function apply(ctx, config = {}) {
     return sessionId
   }
 
+  const isSessionMissing = error => {
+    const message = messageOf(error).toLowerCase()
+    return message.includes('session/not-found') || message.includes('session not found') || (message.includes('session') && message.includes('not found'))
+  }
+
+  /** 会话已经不存在时：新建一个、重新绑定、把旧历史留在面板里，再重试这次请求。 */
+  async function promptWithRecovery({ ctrl, chatId, sessionId, promptText, requestId, rebind }) {
+    const fire = sid =>
+      ctrl.prompt(
+        { sessionId: sid, requestId, mode: 'queue', content: [{ type: 'text', text: promptText }] },
+        new AbortController().signal,
+      )
+    try {
+      await fire(sessionId)
+      return sessionId
+    } catch (error) {
+      if (!isSessionMissing(error)) throw error
+      const fresh = await openDshSession()
+      await rebind(fresh)
+      await store
+        .appendChat(chatId, {
+          role: 'system',
+          text: '原来的 DSH 会话已不存在，已新建一个会话继续；这张卡里的历史记录不受影响。',
+          at: Date.now(),
+        })
+        .catch(() => {})
+      await fire(fresh)
+      return fresh
+    }
+  }
+
+  /** 面板的聊天缓存丢了，但 DSH 会话还在：把最近的消息读回来。 */
+  async function restoreChatFromSession(chatId, sessionId) {
+    const ctrl = sessionController()
+    if (!ctrl || typeof ctrl.events !== 'function' || !sessionId) return false
+    try {
+      const existing = await store.chatDelta(chatId, 0)
+      if (existing.entries.length) return false
+      const page = await ctrl.events(
+        { address: { kind: 'session', sessionId }, maxMessages: 120 },
+        new AbortController().signal,
+      )
+      const records = Array.isArray(page?.records) ? page.records : []
+      const entries = []
+      for (const record of records) {
+        const event = record?.event ?? record
+        const type = event?.type
+        if (type !== 'user/message' && type !== 'assistant/message') continue
+        const text = messageText(event?.data ?? {})
+        if (!text) continue
+        entries.push({ role: type === 'user/message' ? 'user' : 'assistant', text, at: Date.now() })
+      }
+      if (!entries.length) return false
+      await store.appendChat(chatId, { role: 'system', text: '已从 DSH 会话恢复这段对话的历史记录。', at: Date.now() })
+      for (const entry of entries) await store.appendChat(chatId, entry)
+      return true
+    } catch {
+      return false
+    }
+  }
+
   async function ensureSession(contact) {
     if (contact.sessionId) return contact.sessionId
     const sessionId = await openDshSession()
@@ -144,15 +205,14 @@ export function apply(ctx, config = {}) {
     const prompt = chatPrompt(contact, kind === 'research' ? researchInstruction(text) : text, kind, store.publicMe(), store.publicTypes())
     void (async () => {
       try {
-        await ctrl.prompt(
-          {
-            sessionId,
-            requestId,
-            mode: 'queue',
-            content: [{ type: 'text', text: prompt }],
-          },
-          new AbortController().signal,
-        )
+        await promptWithRecovery({
+          ctrl,
+          chatId: contact.id,
+          sessionId,
+          promptText: prompt,
+          requestId,
+          rebind: fresh => store.bindSession(contact.id, fresh),
+        })
       } catch (error) {
         run.running = false
         run.error = messageOf(error)
@@ -282,10 +342,14 @@ export function apply(ctx, config = {}) {
     const prompt = meChatPrompt(store.publicMe(), text)
     void (async () => {
       try {
-        await ctrl.prompt(
-          { sessionId, requestId, mode: 'queue', content: [{ type: 'text', text: prompt }] },
-          new AbortController().signal,
-        )
+        await promptWithRecovery({
+          ctrl,
+          chatId: ME_CHAT_ID,
+          sessionId,
+          promptText: prompt,
+          requestId,
+          rebind: fresh => store.bindMeSession(fresh),
+        })
       } catch (error) {
         meRun.running = false
         meRun.error = messageOf(error)
@@ -308,6 +372,7 @@ export function apply(ctx, config = {}) {
 
   async function meChatState(after) {
     await ready
+    await restoreChatFromSession(ME_CHAT_ID, store.me?.sessionId)
     const chat = await store.chatDelta(ME_CHAT_ID, after)
     return {
       ok: true,
@@ -331,6 +396,7 @@ export function apply(ctx, config = {}) {
     await ready
     const contact = store.find(contactId)
     if (!contact) throw new HttpError(404, '找不到这张名片')
+    await restoreChatFromSession(contact.id, contact.sessionId)
     const chat = await store.chatDelta(contact.id, after)
     const run = runOf(contact.id)
     return {

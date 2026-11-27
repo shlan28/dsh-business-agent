@@ -262,3 +262,17 @@ test('corrupt types.json falls back to defaults and keeps a backup', async () =>
     await rm(dir, { recursive: true, force: true })
   }
 })
+
+test('chat cache falls back to .bak when the main file is corrupted', async () => {
+  await withStore(async (store, dir) => {
+    const created = await store.upsert({ name: '苏迟' })
+    await store.appendChat(created.id, { role: 'user', text: '第一条' })
+    await store.appendChat(created.id, { role: 'assistant', text: '第二条' })
+    const file = join(dir, 'chats', `${created.id}.json`)
+    await writeFile(file, '{broken json')
+    const reloaded = await new Store(dir).load()
+    const delta = await reloaded.chatDelta(created.id, 0)
+    assert.equal(delta.entries.length, 2, '从 .bak 恢复两条')
+    assert.equal(delta.entries[0].text, '第一条')
+  })
+})
