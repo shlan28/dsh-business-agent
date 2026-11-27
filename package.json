@@ -2,6 +2,7 @@
   "name": "dsh-business-agent",
   "version": "0.4.0",
   "description": "DeepSeek Harness 插件：人脉助手——私人商业人脉名片墙 +「我的名片」个人档案，左侧档案 + 右侧 DSH 会话。",
+  "author": "Lu Shi <shilu@aicoda.tech> (https://github.com/shlan28)",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/shlan28/dsh-business-agent.git"
@@ -10,6 +11,7 @@
   "bugs": {
     "url": "https://github.com/shlan28/dsh-business-agent/issues"
   },
+  "license": "MIT",
   "type": "module",
   "main": "./src/host.js",
   "exports": {
@@ -53,7 +55,6 @@
     "contacts",
     "business-card"
   ],
-  "license": "MIT",
   "scripts": {
     "build": "node scripts/build.mjs",
     "test": "node --test test/*.test.mjs",
