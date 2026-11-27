@@ -141,7 +141,7 @@ export function apply(ctx, config = {}) {
     const display = kind === 'research' ? `研究此人：${text}` : text
     await store.appendChat(contact.id, { role: 'user', text: display, at: Date.now() })
     const requestId = `bc-${contact.id}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
-    const prompt = chatPrompt(contact, kind === 'research' ? researchInstruction(text) : text, kind, store.publicMe())
+    const prompt = chatPrompt(contact, kind === 'research' ? researchInstruction(text) : text, kind, store.publicMe(), store.publicTypes())
     void (async () => {
       try {
         await ctrl.prompt(
@@ -201,7 +201,7 @@ export function apply(ctx, config = {}) {
     run.error = ''
     run.updatedAt = Date.now()
     run.turns += 1
-    const prompt = composePrompt(text, run.turns === 1)
+    const prompt = composePrompt(text, run.turns === 1, store.publicTypes())
     void (async () => {
       try {
         await ctrl.prompt(
@@ -372,6 +372,10 @@ export function apply(ctx, config = {}) {
         const me = await store.saveMe(body?.patch ?? body)
         return { ok: true, me, hasMe: hasMe(store.me), state: store.snapshot() }
       }
+      case 'typesSave': {
+        const result = await store.saveTypes(body?.types)
+        return { ok: true, ...result, state: store.snapshot() }
+      }
       case 'meReset': {
         const me = await store.resetMe()
         return { ok: true, me, hasMe: false, state: store.snapshot() }
@@ -521,6 +525,7 @@ export function apply(ctx, config = {}) {
                 me: store.publicMe(),
                 hasMe: hasMe(store.me),
                 questions: meQuestions(store.publicMe()),
+                types: store.publicTypes(),
                 capabilities: {
                   chat: Boolean(sessionController()),
                 },
@@ -729,8 +734,8 @@ export function apply(ctx, config = {}) {
             nameEn: { type: 'string', description: 'English name.' },
             type: {
               type: 'string',
-              enum: ['investor', 'partner', 'client', 'advisor', 'other'],
-              description: 'Relationship type.',
+              description:
+                'Relationship category id. Use the ids returned by business_contact_list.types (defaults: investor / partner / client / advisor / other). Do not invent new ids.',
             },
             role: { type: 'string', description: 'Job title.' },
             company: { type: 'string', description: 'Company or fund.' },
@@ -837,7 +842,12 @@ export function apply(ctx, config = {}) {
                         .toLowerCase()
                         .includes(query)
                     })
-                    return { ok: true, count: contacts.length, contacts: contacts.map(brief) }
+                    return {
+                      ok: true,
+                      count: contacts.length,
+                      contacts: contacts.map(brief),
+                      types: store.publicTypes(),
+                    }
                   }
                   case 'business_contact_get': {
                     const contact = store.find(args?.id)
@@ -921,7 +931,7 @@ export function apply(ctx, config = {}) {
         ctx.get('systemPrompt')?.section({
           name: 'business-cards',
           order: 58,
-          text: 'The user keeps a private business-contact wall (investors, partners, clients, advisors) in the sidebar. Use the business_contact_* tools when they mention a specific person or company, ask you to add someone, record an interaction, prepare for a meeting, or look someone up. Never invent contact details. Research means real web search: append each round as its own dated record with business_contact_research_save (summary + HTTP(S) sources), never overwrite older records. The user\'s own profile lives in business_me_get/business_me_save: read it before suggesting who to contact or what to say; when advice depends on their situation but the profile is empty, ask 1-2 questions and save the answers with business_me_save (only what they actually said).',
+          text: 'The user keeps a private business-contact wall (investors, partners, clients, advisors) in the sidebar. Use the business_contact_* tools when they mention a specific person or company, ask you to add someone, record an interaction, prepare for a meeting, or look someone up. Never invent contact details. Research means real web search: append each round as its own dated record with business_contact_research_save (summary + HTTP(S) sources), never overwrite older records. Contact categories are user-defined: business_contact_list returns the available types, and business_contact_save only accepts those ids. The user\'s own profile lives in business_me_get/business_me_save: read it before suggesting who to contact or what to say; when advice depends on their situation but the profile is empty, ask 1-2 questions and save the answers with business_me_save (only what they actually said).',
         }),
       'business-cards: prompt section',
     )

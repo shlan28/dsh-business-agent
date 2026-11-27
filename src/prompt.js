@@ -1,13 +1,5 @@
 // 投给模型的档案上下文与研究指令。控制长度，只放会改变回答的信息。
 // 「我」的档案（me.json）压缩成 ≤ 500 字，拼在对方档案前面。
-const TYPE_LABELS = {
-  investor: '投资人',
-  partner: '合作伙伴',
-  client: '客户',
-  advisor: '顾问',
-  other: '其他',
-}
-
 const KIND_LABELS = {
   wechat: '微信',
   meeting: '见面',
@@ -91,7 +83,10 @@ export function meDossier(me) {
   return block
 }
 
-export function dossier(contact) {
+const typeLabelOf = (types, id) =>
+  (Array.isArray(types) ? types.find(item => item.id === id)?.label : '') || '其他'
+
+export function dossier(contact, types = []) {
   const who = [contact.company, contact.role].filter(Boolean).join(' · ') || '（未填写公司与角色）'
   const tags = Array.isArray(contact.tags) && contact.tags.length ? contact.tags.join(' / ') : '（无）'
   const reach = [
@@ -106,7 +101,7 @@ export function dossier(contact) {
     ? `共 ${entries.length} 份，最新一份 ${date(latest.at)}·${latest.title}：${one(latest.summary, 400)}（来源 ${latest.sources?.length || 0} 条）`
     : '（暂无）'
   const lines = [
-    `【人脉档案】${contact.name}${contact.nameEn ? `（${contact.nameEn}）` : ''} · ${who} · ${TYPE_LABELS[contact.type] || '其他'}${contact.city ? ` · ${contact.city}` : ''}`,
+    `【人脉档案】${contact.name}${contact.nameEn ? `（${contact.nameEn}）` : ''} · ${who} · ${typeLabelOf(types, contact.type)}${contact.city ? ` · ${contact.city}` : ''}`,
     `标签：${tags}`,
     `联系方式：${reach.length ? reach.join(' · ') : '（无）'}`,
     last ? `最近互动：${date(last.at)} ${KIND_LABELS[last.kind] || '备注'} —— ${one(last.text, 240)}` : '最近互动：（无）',
@@ -164,7 +159,7 @@ export function meChatPrompt(me, text) {
 export const ME_CHAT_KICKOFF = '开始吧：看一下我的档案，从还没填的内容里挑最关键的一个问题问我。'
 
 /** 普通对话 / 研究请求的完整提示词。me 是「我」的档案，用来让建议落在我的处境上。 */
-export function chatPrompt(contact, text, kind = 'chat', me = null) {
+export function chatPrompt(contact, text, kind = 'chat', me = null, types = []) {
   const mine = meDossier(me)
   const mineFocus = mine && kind === 'research'
     ? '\n检索时优先找「和我的目标 / 需求相关」的信息：对方的兴趣点、最近动作、能不能对上我的需要；无关的八卦不要写。'
@@ -180,7 +175,7 @@ export function chatPrompt(contact, text, kind = 'chat', me = null) {
       + '\n4) 保存工具如果报错/参数被拒，把 summary 压到 400 字以内、来源减到 3 条再试一次；'
       + '\n5) 如果一条可靠来源都搜不到，就在对话里说明搜不到，不要调用保存工具、不要编造来源。'
     : ''
-  return `${mine ? `${mine}\n\n` : ''}${dossier(contact)}\n\n${RULES}${mineFocus}${research}${matching}\n\n用户：${text}`
+  return `${mine ? `${mine}\n\n` : ''}${dossier(contact, types)}\n\n${RULES}${mineFocus}${research}${matching}\n\n用户：${text}`
 }
 
 /** 研究请求的默认关注点。 */
@@ -190,13 +185,14 @@ export function researchInstruction(focus) {
 }
 
 /** 一句话新建：让 DSH 直接把用户的话整理成一张名片。 */
-export function composePrompt(text, first = true) {
+export function composePrompt(text, first = true, types = []) {
   const task = [
     '你在帮用户用一句话新建一张商业人脉名片。',
     first ? `用户说：${text}` : `用户补充：${text}`,
     '',
     '请直接调用 business_contact_save 建档，不要反问，也不要搜索网页。',
-    '能从这句话推断的字段就填：姓名、英文名、角色、公司、类型（investor/partner/client/advisor/other，判断不了用 other）、城市、标签（最多 4 个）、邮箱/微信/电话、备注。',
+    `能从这句话推断的字段就填：姓名、英文名、角色、公司、类型、城市、标签（最多 4 个）、邮箱/微信/电话、备注。`,
+    `类型只能从这些 id 里选（不要自己造）：${(Array.isArray(types) && types.length ? types : [{ id: 'other', label: '其他' }]).map(item => `${item.id}（${item.label}）`).join('、')}；判断不了就用 other。`,
     '不确定的字段留空，不要编造。姓名是必填；如果这句话里确实没有名字，只回一句「这个人的名字是？」。',
     '建档成功后只回复「已建好」，不要重复整份档案。',
   ]

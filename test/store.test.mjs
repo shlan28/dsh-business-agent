@@ -216,3 +216,49 @@ test('corrupt me.json is backed up and degrades to an empty profile', async () =
     await rm(dir, { recursive: true, force: true })
   }
 })
+
+test('custom categories: defaults, rename, delete migrates contacts to other', async () => {
+  await withStore(async (store, dir) => {
+    assert.deepEqual(store.publicTypes().map(item => item.id), ['investor', 'partner', 'client', 'advisor', 'other'])
+
+    const early = await store.upsert({ name: '沈亦舟', type: 'investor' })
+    const saved = await store.saveTypes([
+      { id: 'investor', label: '早期基金' },
+      { id: 'vip', label: 'VIP 客户' },
+      { id: 'other', label: '其他' },
+    ])
+    assert.equal(saved.moved, 0, '投资人还在，不用迁移')
+    assert.deepEqual(saved.types.map(item => item.id), ['investor', 'vip', 'other'])
+    assert.equal(saved.types[0].label, '早期基金')
+
+    const again = await store.saveTypes([
+      { id: 'vip', label: 'VIP 客户' },
+      { id: 'other', label: '其他' },
+    ])
+    assert.equal(again.moved, 1, '删掉投资人后，沈亦舟并入其他')
+    assert.equal(store.find('沈亦舟').type, 'other')
+    assert.equal(store.find('沈亦舟').id, early.id)
+
+    await assert.rejects(
+      () => store.upsert({ name: '周牧', type: 'nope' }),
+      /没有这个分类/,
+    )
+
+    const reloaded = await new Store(dir).load()
+    assert.equal(reloaded.publicTypes().length, 2)
+    assert.equal(reloaded.find('沈亦舟').type, 'other')
+  })
+})
+
+test('corrupt types.json falls back to defaults and keeps a backup', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'bc-store-'))
+  try {
+    await writeFile(join(dir, 'types.json'), '{oops')
+    const store = await new Store(dir).load()
+    assert.equal(store.publicTypes().length, 5)
+    const backups = await readdir(join(dir, 'backups'))
+    assert.ok(backups.some(name => name.startsWith('broken-types-')))
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})

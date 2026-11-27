@@ -1,5 +1,5 @@
 import React from 'react'
-import { ACCENTS, ACCENT_KEYS, TYPES, TYPE_ZH, isoFromLocal, localInputValue } from './ui.jsx'
+import { ACCENTS, ACCENT_KEYS, isoFromLocal, localInputValue } from './ui.jsx'
 
 function blankDraft() {
   return {
@@ -40,7 +40,7 @@ function draftOf(contact) {
   }
 }
 
-export function Editor({ contact, t, onSave, onDelete, onClose }) {
+export function Editor({ contact, types = [], t, onSave, onDelete, onClose, onManageTypes }) {
   const [draft, setDraft] = React.useState(() => draftOf(contact))
   const [error, setError] = React.useState('')
   const [busy, setBusy] = React.useState(false)
@@ -141,10 +141,15 @@ export function Editor({ contact, t, onSave, onDelete, onClose }) {
             <input value={draft.company} onChange={event => update({ company: event.target.value })} />
           </label>
           <label className="bc-field">
-            <span>{t('类型')}</span>
+            <span>
+              {t('分类')}
+              {onManageTypes ? (
+                <button type="button" className="bc-field-link" onClick={onManageTypes}>{t('管理分类')}</button>
+              ) : null}
+            </span>
             <select value={draft.type} onChange={event => update({ type: event.target.value })}>
-              {TYPES.map(type => (
-                <option key={type} value={type}>{TYPE_ZH[type]}</option>
+              {types.map(item => (
+                <option key={item.id} value={item.id}>{item.label}</option>
               ))}
             </select>
           </label>

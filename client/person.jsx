@@ -2,7 +2,7 @@ import React from 'react'
 import { ChevronDownIcon, ChevronLeftIcon, CopyIcon, PlusIcon, RefreshIcon } from './icons.jsx'
 import { Chat } from './chat.jsx'
 import { ResearchList, ResearchModal } from './research.jsx'
-import { Plate, TYPE_LABELS, dateLabel, numberLabel, relativeTime, timeLabel } from './ui.jsx'
+import { Plate, dateLabel, labelOfType, numberLabel, relativeTime, timeLabel } from './ui.jsx'
 
 const KIND_LABELS = { wechat: '微信', meeting: '线下', call: '电话', email: '邮件', note: '备注' }
 
@@ -19,7 +19,7 @@ function Section({ title, children, aside }) {
   )
 }
 
-export function Person({ contact, t, capabilities, onBack, onEdit, onToast, onNote, onResearch, onContactChanged }) {
+export function Person({ contact, types = [], t, capabilities, onBack, onEdit, onToast, onNote, onResearch, onContactChanged }) {
   const [flipped, setFlipped] = React.useState(false)
   const [noteOpen, setNoteOpen] = React.useState(false)
   const [noteText, setNoteText] = React.useState('')
@@ -91,7 +91,7 @@ export function Person({ contact, t, capabilities, onBack, onEdit, onToast, onNo
           {t('返回全部')}
         </button>
         <span className="mono dim dcenter">
-          {TYPE_LABELS[contact.type] || 'OTHER'} · {numberLabel(contact.no)} · {contact.city || '—'}
+          {labelOfType(types, contact.type)} · {numberLabel(contact.no)} · {contact.city || '—'}
         </span>
         <div className="dactions">
           <button className="ghost" onClick={onEdit}>{t('编辑')}</button>
@@ -122,7 +122,7 @@ export function Person({ contact, t, capabilities, onBack, onEdit, onToast, onNo
                   <span className="mono dim">BUSINESS CARD</span>
                   <span className="mono dim">{numberLabel(contact.no)}</span>
                 </div>
-                <Plate contact={contact} />
+                <Plate contact={contact} types={types} />
                 <div className="face-info">
                   <div className="face-name">{contact.name}</div>
                   <div className="face-role">

@@ -142,6 +142,25 @@ test('host routes, chat wiring and agent tools work together', async () => {
     const meState = await call('GET', '/business-cards/state')
     assert.equal(meState.data.hasMe, true)
     assert.equal(meState.data.me.goals.length, 1)
+    assert.equal(meState.data.types.length, 5, '默认五个分类')
+
+    const savedTypes = await call('POST', '/business-cards/op', {
+      action: 'typesSave',
+      types: [
+        { id: 'investor', label: '早期基金' },
+        { id: 'client', label: '客户' },
+        { id: 'other', label: '其他' },
+      ],
+    })
+    assert.equal(savedTypes.data.ok, true)
+    assert.equal(savedTypes.data.types.length, 3)
+    assert.equal(savedTypes.data.types[0].label, '早期基金')
+
+    const afterTypes = await call('GET', '/business-cards/state')
+    assert.deepEqual(afterTypes.data.types.map(item => item.id), ['investor', 'client', 'other'])
+    const listTool = tools.find(tool => tool.name === 'business_contact_list')
+    const listedWithTypes = await listTool.execute({ query: '' })
+    assert.ok(Array.isArray(listedWithTypes.types) && listedWithTypes.types.length === 3)
 
     const saved = await call('POST', '/business-cards/op', {
       action: 'save',

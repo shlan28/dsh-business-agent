@@ -4,7 +4,16 @@ import { promises as fs } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 
-export const TYPES = ['investor', 'partner', 'client', 'advisor', 'other']
+/** 默认分类：用户可以改名、增删，但 other 永远保留做兜底。 */
+export const DEFAULT_TYPES = [
+  { id: 'investor', label: '投资人' },
+  { id: 'partner', label: '合作伙伴' },
+  { id: 'client', label: '客户' },
+  { id: 'advisor', label: '顾问' },
+  { id: 'other', label: '其他' },
+]
+export const FALLBACK_TYPE = 'other'
+export const MAX_TYPES = 24
 export const ACCENTS = ['orchid', 'peach', 'butter', 'rose', 'sage', 'sky', 'blue']
 export const NOTE_KINDS = ['wechat', 'meeting', 'call', 'email', 'note']
 export const CHAT_ROLES = ['user', 'assistant', 'tool', 'system', 'error']
@@ -42,7 +51,7 @@ export class HttpError extends Error {
   }
 }
 
-const TYPE_SET = new Set(TYPES)
+
 const ACCENT_SET = new Set(ACCENTS)
 const NOTE_SET = new Set(NOTE_KINDS)
 const CHAT_ROLE_SET = new Set(CHAT_ROLES)
@@ -57,6 +66,27 @@ const iso = value => {
 const nowIso = () => new Date().toISOString()
 const clone = value => (value === undefined ? undefined : JSON.parse(JSON.stringify(value)))
 const pickAccent = id => ACCENTS[[...id].reduce((sum, ch) => sum + ch.charCodeAt(0), 0) % ACCENTS.length]
+
+const typeId = value => text(value, 40).toLowerCase().replace(/[^a-z0-9_-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
+
+/** 分类规整：id 只留小写 slug，label 必填；other 永远存在且排在最后。 */
+export function normalizeTypes(value) {
+  const list = []
+  const seen = new Set()
+  for (const entry of Array.isArray(value) ? value : []) {
+    const label = text(entry?.label, 16)
+    if (!label) continue
+    // 中文标签无法做 slug 时，自动给一个稳定 id，别让用户的分类凭空消失。
+    const id = typeId(entry?.id) || `t_${randomUUID().slice(0, 8)}`
+    if (seen.has(id)) continue
+    seen.add(id)
+    list.push({ id, label })
+    if (list.length >= MAX_TYPES) break
+  }
+  const other = list.find(item => item.id === FALLBACK_TYPE)
+  const rest = list.filter(item => item.id !== FALLBACK_TYPE).slice(0, MAX_TYPES - 1)
+  return [...rest, { id: FALLBACK_TYPE, label: other?.label || '其他' }]
+}
 
 function normalizeTags(value) {
   const raw = Array.isArray(value) ? value : typeof value === 'string' ? value.split(/[,，、]/) : []
@@ -271,7 +301,7 @@ export function normalizeContact(raw, previous = null) {
     no: Number.isFinite(base.no) && base.no > 0 ? base.no : 0,
     name,
     nameEn: text(has('nameEn') ? source.nameEn : previous?.nameEn, 120),
-    type: TYPE_SET.has(source.type) ? source.type : previous?.type || 'other',
+    type: text(has('type') ? source.type : previous?.type, 40) || FALLBACK_TYPE,
     role: text(has('role') ? source.role : previous?.role, 120),
     company: text(has('company') ? source.company : previous?.company, 160),
     city: text(has('city') ? source.city : previous?.city, 120),
@@ -343,9 +373,11 @@ export class Store {
     this.dir = dir
     this.file = join(dir, 'contacts.json')
     this.meFile = join(dir, 'me.json')
+    this.typesFile = join(dir, 'types.json')
     this.chatDir = join(dir, 'chats')
     this.backupDir = join(dir, 'backups')
     this.contacts = []
+    this.types = normalizeTypes(DEFAULT_TYPES)
     this.me = emptyMe()
     this.revision = 0
     this.chatCache = new Map()
@@ -361,6 +393,7 @@ export class Store {
   async load() {
     await fs.mkdir(this.chatDir, { recursive: true })
     await fs.mkdir(this.backupDir, { recursive: true })
+    await this.loadTypes()
     try {
       const raw = JSON.parse(await fs.readFile(this.file, 'utf8'))
       const list = Array.isArray(raw?.contacts) ? raw.contacts : []
@@ -375,6 +408,7 @@ export class Store {
           normalized.timeline = normalizeTimeline(entry?.timeline)
           normalized.research = normalizeResearch(entry?.research)
           normalized.lastContactAt = iso(entry?.lastContactAt)
+          if (!this.types.some(item => item.id === normalized.type)) normalized.type = FALLBACK_TYPE
           contacts.push(normalized)
         } catch {
           // 单条坏数据跳过，别让整个面板打不开。
@@ -395,6 +429,69 @@ export class Store {
     }
     await this.loadMe()
     return this
+  }
+
+  /** 读分类；没有文件就用默认分类，坏文件先备份再降级。 */
+  async loadTypes() {
+    try {
+      const raw = JSON.parse(await fs.readFile(this.typesFile, 'utf8'))
+      const list = Array.isArray(raw?.types) ? raw.types : raw
+      this.types = normalizeTypes(Array.isArray(list) && list.length ? list : DEFAULT_TYPES)
+    } catch (error) {
+      if (error?.code !== 'ENOENT') {
+        try {
+          await fs.copyFile(this.typesFile, join(this.backupDir, `broken-types-${Date.now()}.json`))
+        } catch {
+          // 备份失败也不挡启动。
+        }
+      }
+      this.types = normalizeTypes(DEFAULT_TYPES)
+    }
+    return this.types
+  }
+
+  async writeTypes() {
+    const tmp = `${this.typesFile}.${process.pid}.${Date.now()}.tmp`
+    await fs.mkdir(dirname(this.typesFile), { recursive: true })
+    await fs.writeFile(tmp, JSON.stringify({ types: this.types }, null, 2))
+    try {
+      await fs.copyFile(this.typesFile, join(this.backupDir, `types-${Date.now()}.json`))
+      const backups = (await fs.readdir(this.backupDir)).filter(name => name.startsWith('types-')).sort()
+      for (const stale of backups.slice(0, Math.max(0, backups.length - 3))) {
+        await fs.rm(join(this.backupDir, stale), { force: true })
+      }
+    } catch {
+      // 第一次写入没有旧文件可备份。
+    }
+    await fs.rename(tmp, this.typesFile)
+  }
+
+  publicTypes() {
+    return clone(this.types)
+  }
+
+  typeLabel(id) {
+    return this.types.find(item => item.id === id)?.label || id || FALLBACK_TYPE
+  }
+
+  /** 保存分类：删掉的分类下的人自动并入「其他」，并返回迁移人数。 */
+  async saveTypes(value) {
+    const next = normalizeTypes(value)
+    this.types = next
+    let moved = 0
+    for (const contact of this.contacts) {
+      if (!next.some(item => item.id === contact.type)) {
+        contact.type = FALLBACK_TYPE
+        contact.updatedAt = nowIso()
+        moved += 1
+      }
+    }
+    this.revision += 1
+    await this.enqueue(async () => {
+      await this.writeTypes()
+      if (moved) await this.writeContacts()
+    })
+    return { types: this.publicTypes(), moved }
   }
 
   /** 读「我」的档案；没有文件就是空档案，坏文件先备份再降级。 */
@@ -539,6 +636,9 @@ export class Store {
       throw new HttpError(409, `联系人已达上限 ${LIMITS.contacts}`)
     }
     const contact = normalizeContact(raw, previous)
+    if (!this.types.some(item => item.id === contact.type)) {
+      throw new HttpError(400, `没有这个分类：${contact.type}（可用：${this.types.map(item => item.id).join(' / ')}）`)
+    }
     if (!contact.no) contact.no = this.contacts.reduce((max, entry) => Math.max(max, entry.no || 0), 0) + 1
     if (previous) {
       const index = this.contacts.indexOf(previous)

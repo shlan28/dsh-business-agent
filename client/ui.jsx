@@ -1,21 +1,15 @@
 import React from 'react'
 import { ArrowIcon } from './icons.jsx'
 
-export const TYPES = ['investor', 'partner', 'client', 'advisor', 'other']
-export const TYPE_LABELS = {
-  investor: 'INVESTOR',
-  partner: 'PARTNER',
-  client: 'CLIENT',
-  advisor: 'ADVISOR',
-  other: 'OTHER',
+export const FALLBACK_TYPE = 'other'
+
+/** 按用户配置的分类取标签；找不到就退回兜底文案。 */
+export function labelOfType(types, id) {
+  if (!Array.isArray(types)) return 'OTHER'
+  const found = types.find(item => item.id === id)
+  return found?.label || '其他'
 }
-export const TYPE_ZH = {
-  investor: '投资人',
-  partner: '合作伙伴',
-  client: '客户',
-  advisor: '顾问',
-  other: '其他',
-}
+
 export const ACCENTS = {
   orchid: 'linear-gradient(150deg,#EFC9F6 0%,#D9B0F0 48%,#C6A0E9 100%)',
   peach: 'linear-gradient(150deg,#FAD9B4 0%,#F3C193 55%,#EBA875 100%)',
@@ -29,10 +23,6 @@ export const ACCENT_KEYS = Object.keys(ACCENTS)
 
 export function accentOf(contact) {
   return ACCENTS[contact?.accent] || ACCENTS.orchid
-}
-
-export function typeLabel(contact) {
-  return TYPE_LABELS[contact?.type] || 'OTHER'
 }
 
 export function numberLabel(no) {
@@ -128,7 +118,7 @@ export function siteOf(url) {
   }
 }
 
-export function Plate({ contact, className = '', seal = false }) {
+export function Plate({ contact, types = [], className = '', seal = false }) {
   return (
     <div className={`plate ${className}`.trim()} style={{ background: accentOf(contact) }}>
       <span className="seal" style={{ borderColor: 'rgba(20,20,20,.22)' }}>
@@ -136,7 +126,7 @@ export function Plate({ contact, className = '', seal = false }) {
         <em>{contact?.nameEn ? contact.nameEn.toUpperCase() : ''}</em>
       </span>
       <span className="where">
-        {[contact?.city, TYPE_LABELS[contact?.type]].filter(Boolean).join(' · ')}
+        {[contact?.city, labelOfType(types, contact?.type)].filter(Boolean).join(' · ')}
       </span>
     </div>
   )

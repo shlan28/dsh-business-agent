@@ -1,8 +1,6 @@
 import React from 'react'
 import { ArrowIcon, SearchIcon } from './icons.jsx'
-import { Plate, TYPES, TYPE_LABELS, numberLabel, relativeTime } from './ui.jsx'
-
-const FILTERS = [['all', 'ALL'], ['investor', 'INVESTORS'], ['partner', 'PARTNERS'], ['client', 'CLIENTS'], ['advisor', 'ADVISORS']]
+import { Plate, labelOfType, numberLabel, relativeTime } from './ui.jsx'
 
 function countsOf(contacts) {
   const counts = { all: contacts.length }
@@ -10,10 +8,14 @@ function countsOf(contacts) {
   return counts
 }
 
-export function Wall({ contacts, loaded, error, t, onOpen, onNew, onRetry, onMe }) {
+export function Wall({ contacts, loaded, error, t, types = [], onOpen, onNew, onRetry, onMe, onManageTypes }) {
   const [filter, setFilter] = React.useState('all')
   const [query, setQuery] = React.useState('')
   const counts = countsOf(contacts)
+  const filters = React.useMemo(
+    () => [{ id: 'all', label: 'ALL' }, ...types.map(item => ({ id: item.id, label: item.label }))],
+    [types],
+  )
 
   const list = React.useMemo(() => {
     const needle = query.trim().toLowerCase()
@@ -55,18 +57,21 @@ export function Wall({ contacts, loaded, error, t, onOpen, onNew, onRetry, onMe 
 
         <div className="toolbar">
           <div className="tabs" role="tablist">
-            {FILTERS.map(([id, label]) => (
+            {filters.map(item => (
               <button
-                key={id}
+                key={item.id}
                 role="tab"
-                aria-selected={filter === id}
+                aria-selected={filter === item.id}
                 className="tab"
-                onClick={() => setFilter(id)}
+                onClick={() => setFilter(item.id)}
               >
-                {label}
-                <b>{counts[id] || 0}</b>
+                {item.label}
+                <b>{counts[item.id] || 0}</b>
               </button>
             ))}
+            <button className="tab tab-manage" onClick={onManageTypes} title={t('管理分类')}>
+              + {t('分类')}
+            </button>
           </div>
           <div className="tools">
             <label className="search">
@@ -124,10 +129,10 @@ export function Wall({ contacts, loaded, error, t, onOpen, onNew, onRetry, onMe 
                     aria-label={`${contact.name} ${contact.role} ${contact.company}`}
                   >
                     <div className="card-top">
-                      <span className="cat">{TYPE_LABELS[contact.type] || 'OTHER'}</span>
+                      <span className="cat">{labelOfType(types, contact.type)}</span>
                       <span className="no">{numberLabel(contact.no)}</span>
                     </div>
-                    <Plate contact={contact} />
+                    <Plate contact={contact} types={types} />
                     <div className="card-body">
                       <div className="card-name">{contact.name}</div>
                       <div className="card-role">

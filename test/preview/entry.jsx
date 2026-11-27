@@ -49,6 +49,9 @@ setTimeout(() => {
     const button = [...document.querySelectorAll('.dactions button')][0]
     button?.click()
   }
+  if (params.has('types')) {
+    document.querySelector('.tab-manage')?.click()
+  }
   if (params.has('me')) {
     const button = [...document.querySelectorAll('button')].find(node => node.textContent?.includes('我的名片'))
     button?.click()

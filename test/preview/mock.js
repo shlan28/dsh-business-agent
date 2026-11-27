@@ -160,6 +160,14 @@ const questionsOf = me =>
   QUESTIONS.filter(([, , missing]) => missing({ ...me, identity: me.identity || {}, preferences: { redLines: [], ...(me.preferences || {}) } }))
     .map(([key, field, , question]) => ({ key, field, question }))
 
+const TYPES = [
+  { id: 'investor', label: '投资人' },
+  { id: 'partner', label: '合作伙伴' },
+  { id: 'client', label: '客户' },
+  { id: 'advisor', label: '顾问' },
+  { id: 'other', label: '其他' },
+]
+
 const now = () => new Date().toISOString()
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 
@@ -171,6 +179,7 @@ export function installMockApi({ dark = false, emptyProfile = false } = {}) {
   let revision = 7
   let meChat = []
   let meChatRunning = false
+  let types = JSON.parse(JSON.stringify(TYPES))
   const chats = new Map([
     ['c_shen', { seq: 4, entries: DEMO_CHAT, sessionId: 's_preview_shen', running: false }],
     [
@@ -228,7 +237,15 @@ export function installMockApi({ dark = false, emptyProfile = false } = {}) {
     await sleep(60)
 
     if (path.endsWith('/business-cards/state')) {
-      return send({ revision, contacts: JSON.parse(JSON.stringify(contacts)), me, hasMe: Boolean(me.identity?.name), questions: questionsOf(me), capabilities: { chat: true } })
+      return send({
+        revision,
+        contacts: JSON.parse(JSON.stringify(contacts)),
+        me,
+        hasMe: Boolean(me.identity?.name),
+        questions: questionsOf(me),
+        types,
+        capabilities: { chat: true },
+      })
     }
     if (path.endsWith('/business-cards/me/chat/state')) {
       return send({ revision, entries: meChat, running: meChatRunning, questions: questionsOf(me), sessionId: 's_preview_me' })
@@ -271,6 +288,25 @@ export function installMockApi({ dark = false, emptyProfile = false } = {}) {
       return send({ ok: true })
     }
     if (path.endsWith('/business-cards/op')) {
+      if (body.action === 'typesSave') {
+        const list = (body.types || []).filter(item => item.label)
+        const ids = new Set(list.map(item => item.id).filter(Boolean))
+        ids.add('other')
+        types = list
+          .filter(item => item.id)
+          .concat(list.filter(item => !item.id).map((item, i) => ({ ...item, id: `t_${i}` })))
+          .filter(item => item.id !== 'other')
+          .concat([{ id: 'other', label: '其他' }])
+        let moved = 0
+        for (const contact of contacts) {
+          if (!types.some(item => item.id === contact.type)) {
+            contact.type = 'other'
+            moved += 1
+          }
+        }
+        revision += 1
+        return send({ types, moved, state: { revision, contacts } })
+      }
       if (body.action === 'me') {
         const patch = body.patch || {}
         me = {

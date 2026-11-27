@@ -71,3 +71,18 @@ test('my-card chat prompt lists the missing questions one at a time', async () =
   assert.equal(full.length, 0, '档案齐全时不再有清单')
   assert.match(meChatPrompt(me, '我还有什么要补的？'), /都已填/)
 })
+
+test('custom category labels flow into dossier and compose prompt', async () => {
+  const { composePrompt, dossier } = await import('../src/prompt.js')
+  const types = [
+    { id: 'investor', label: '早期基金' },
+    { id: 'other', label: '其他' },
+  ]
+  const text = dossier({ name: '沈亦舟', type: 'investor', tags: [], timeline: [], research: { entries: [] } }, types)
+  assert.match(text, /早期基金/)
+
+  const compose = composePrompt('周牧，观夏创始人', true, types)
+  assert.match(compose, /investor（早期基金）/)
+  assert.doesNotMatch(compose, /partner/)
+})
+

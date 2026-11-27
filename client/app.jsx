@@ -5,6 +5,7 @@ import { Person } from './person.jsx'
 import { Editor } from './editor.jsx'
 import { Composer } from './compose.jsx'
 import { MyCard } from './me.jsx'
+import { TypeManager } from './types.jsx'
 
 const STORAGE_KEY = 'dsh:business-cards:open'
 const ME_AUTO_KEY = 'dsh:business-cards:me-auto'
@@ -36,6 +37,7 @@ export function App({ ctx, t, css }) {
     loaded: false,
     error: '',
     contacts: [],
+    types: [],
     me: null,
     hasMe: false,
     questions: [],
@@ -52,6 +54,7 @@ export function App({ ctx, t, css }) {
   const [editor, setEditor] = React.useState(null)
   const [composer, setComposer] = React.useState(false)
   const [meOpen, setMeOpen] = React.useState(false)
+  const [typesOpen, setTypesOpen] = React.useState(false)
   const autoOpenedRef = React.useRef(false)
   const [toast, setToast] = React.useState(null)
   const [scheme, setScheme] = React.useState(() => readScheme(ctx))
@@ -72,6 +75,7 @@ export function App({ ctx, t, css }) {
         loaded: true,
         error: '',
         contacts: Array.isArray(data.contacts) ? data.contacts : [],
+        types: Array.isArray(data.types) ? data.types : [],
         me: data.me || null,
         hasMe: Boolean(data.hasMe),
         questions: Array.isArray(data.questions) ? data.questions : [],
@@ -176,6 +180,21 @@ export function App({ ctx, t, css }) {
     }
   }
 
+  const saveTypes = async list => {
+    const data = await api('/op', { method: 'POST', body: { action: 'typesSave', types: list } })
+    if (data.state) {
+      setState(current => ({
+        ...current,
+        contacts: data.state.contacts,
+        revision: data.state.revision,
+        types: data.types || current.types,
+      }))
+    }
+    if (data.moved) notify(`${t('已保存')}：${data.moved} ${t('张名片并入「其他」')}`)
+    else notify(t('已保存'))
+    return data
+  }
+
   const handleComposed = React.useCallback(
     async id => {
       setComposer(false)
@@ -233,6 +252,7 @@ export function App({ ctx, t, css }) {
       ) : selected ? (
         <Person
           contact={selected}
+          types={state.types}
           t={t}
           capabilities={state.capabilities}
           onBack={back}
@@ -247,11 +267,13 @@ export function App({ ctx, t, css }) {
           contacts={state.contacts}
           loaded={state.loaded}
           error={state.error}
+          types={state.types}
           t={t}
           onOpen={open}
           onNew={() => (state.capabilities.chat ? setComposer(true) : setEditor('new'))}
           onRetry={refresh}
           onMe={() => setMeOpen(true)}
+          onManageTypes={() => setTypesOpen(true)}
         />
       )}
 
@@ -270,10 +292,21 @@ export function App({ ctx, t, css }) {
       {editor !== null ? (
         <Editor
           contact={editing || null}
+          types={state.types}
           t={t}
+          onManageTypes={() => setTypesOpen(true)}
           onSave={saveContact}
           onDelete={deleteContact}
           onClose={() => setEditor(null)}
+        />
+      ) : null}
+
+      {typesOpen ? (
+        <TypeManager
+          types={state.types}
+          t={t}
+          onSave={saveTypes}
+          onClose={() => setTypesOpen(false)}
         />
       ) : null}
 
