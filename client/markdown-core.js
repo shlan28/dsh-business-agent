@@ -1,14 +1,51 @@
 // 轻量 Markdown 解析：只做会话里真正会出现的那一档语法，输出纯 token 树，方便单测。
 // 支持：标题 #/##/###、无序/有序列表、引用、代码块 ```、行内代码、粗体、斜体、删除线、
-//       链接 [文字](url)、裸链接、分隔线 ---。表格与嵌套列表不处理（原样当普通段落）。
+//       链接 [文字](url)、裸链接、分隔线 ---、GFM 表格（含对齐）。嵌套列表不处理（当平铺列表）。
 
 const FENCE = /^```\s*([\w-]*)\s*$/
 const HEADING = /^(#{1,6})\s+(.+?)\s*#*\s*$/
 const QUOTE = /^>\s?(.*)$/
 const ITEM = /^(\s*)([-*+]|\d+[.)])\s+(.*)$/
 const RULE = /^([-*_])\1{2,}\s*$/
+const TABLE_SEPARATOR = /^\s*\|?\s*:?-{1,}:?\s*(\|\s*:?-{1,}:?\s*)+\|?\s*$/
 
 const INLINE = /(`[^`\n]+`|\*\*[^*\n]+\*\*|~~[^~\n]+~~|\*[^*\n]+\*|_[^_\n]+_|!\[[^\]]*\]\([^)]*\)|\[[^\]]+\]\([^)\s]+\)|https?:\/\/[^\s<>()（）]+)/g
+
+/** 把 `| a | b |` 拆成单元格；支持 \| 转义，太短的表格行自动用空串补齐。 */
+export function splitTableRow(line, columns = 0) {
+  const source = String(line ?? '').trim().replace(/^\|/, '').replace(/\|$/, '')
+  const cells = []
+  let buffer = ''
+  for (let index = 0; index < source.length; index += 1) {
+    const char = source[index]
+    if (char === '\\' && source[index + 1] === '|') {
+      buffer += '|'
+      index += 1
+      continue
+    }
+    if (char === '|') {
+      cells.push(buffer.trim())
+      buffer = ''
+      continue
+    }
+    buffer += char
+  }
+  cells.push(buffer.trim())
+  while (columns && cells.length < columns) cells.push('')
+  return columns ? cells.slice(0, columns) : cells
+}
+
+/** 分隔行 → 每列的对齐方式（left / center / right / null）。 */
+function tableAlignments(line) {
+  return splitTableRow(line).map(cell => {
+    const value = cell.trim()
+    const left = value.startsWith(':')
+    const right = value.endsWith(':')
+    if (left && right) return 'center'
+    if (right) return 'right'
+    return 'left'
+  })
+}
 
 /** 行内 token：文本 / 粗体 / 斜体 / 行内代码 / 删除线 / 链接。 */
 export function parseInline(text) {
@@ -93,6 +130,21 @@ export function parseMarkdown(text) {
         index += 1
       }
       blocks.push({ type: 'quote', text: body.join('\n') })
+      continue
+    }
+
+    const tableHead = line.includes('|') && index + 1 < lines.length && TABLE_SEPARATOR.test(lines[index + 1])
+    if (tableHead) {
+      flush()
+      const header = splitTableRow(line)
+      const align = tableAlignments(lines[index + 1])
+      index += 2
+      const rows = []
+      while (index < lines.length && lines[index].includes('|') && lines[index].trim()) {
+        rows.push(splitTableRow(lines[index], header.length))
+        index += 1
+      }
+      blocks.push({ type: 'table', header, align, rows })
       continue
     }
 

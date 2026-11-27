@@ -68,3 +68,31 @@ test('empty input yields no blocks', () => {
   assert.deepEqual(parseMarkdown(''), [])
   assert.deepEqual(parseMarkdown(null), [])
 })
+
+test('gfm tables: header, alignment, rows and escaped pipes', () => {
+  const blocks = parseMarkdown(
+    [
+      '| 页面 | 用途 | 备注 |',
+      '|:---|:---:|---:|',
+      '| 首页 | 看优先联系的人 | **重点** |',
+      '| 档案 | 互动与建议 | a \\| b |',
+      '',
+      '普通段落',
+    ].join('\n'),
+  )
+  assert.equal(blocks[0].type, 'table')
+  assert.deepEqual(blocks[0].header, ['页面', '用途', '备注'])
+  assert.deepEqual(blocks[0].align, ['left', 'center', 'right'])
+  assert.equal(blocks[0].rows.length, 2)
+  assert.deepEqual(blocks[0].rows[1], ['档案', '互动与建议', 'a | b'])
+  assert.equal(blocks[1].type, 'paragraph')
+
+  const short = parseMarkdown('| a | b |\n|---|---|\n| 只有一格 |')
+  assert.deepEqual(short[0].rows[0], ['只有一格', ''])
+})
+
+test('a line with pipes but no separator stays a paragraph', () => {
+  const blocks = parseMarkdown('a | b 不是表格\n下一行')
+  assert.equal(blocks.length, 1)
+  assert.equal(blocks[0].type, 'paragraph')
+})

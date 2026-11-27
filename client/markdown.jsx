@@ -69,6 +69,35 @@ function Block({ block, index }) {
       )
     case 'hr':
       return <hr className="md-rule" key={`b${index}`} />
+    case 'table': {
+      const alignOf = column => block.align?.[column] || 'left'
+      return (
+        <div className="md-table-wrap" key={`b${index}`}>
+          <table className="md-table">
+            <thead>
+              <tr>
+                {block.header.map((cell, column) => (
+                  <th key={`h${column}`} style={{ textAlign: alignOf(column) }}>
+                    <InlineLine text={cell} />
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {block.rows.map((row, rowIndex) => (
+                <tr key={`r${rowIndex}`}>
+                  {row.map((cell, column) => (
+                    <td key={`c${column}`} style={{ textAlign: alignOf(column) }}>
+                      <InlineLine text={cell} />
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )
+    }
     case 'paragraph':
     default:
       return (

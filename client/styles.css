@@ -506,3 +506,17 @@
 .bc-root .msg .body .bc-md ul.md-list { display: block; gap: 0; }
 .bc-root .msg .body .bc-md .md-list li { display: list-item; }
 .bc-root .msg .body .bc-md .md-list li i { display: none; }
+
+/* Markdown 表格 */
+.bc-root .bc-md .md-table-wrap { max-width: 100%; overflow-x: auto; margin: 12px 0;
+  border: 1px solid var(--line); border-radius: 8px; scrollbar-width: none; -ms-overflow-style: none; }
+.bc-root .bc-md .md-table-wrap::-webkit-scrollbar { width: 0; height: 0; }
+.bc-root .bc-md .md-table { border-collapse: collapse; width: 100%; font-size: 11.5px; line-height: 1.65; }
+.bc-root .bc-md .md-table th,
+.bc-root .bc-md .md-table td { padding: 7px 10px; border-bottom: 1px solid var(--line-soft);
+  vertical-align: top; text-align: left; }
+.bc-root .bc-md .md-table thead th { font-family: var(--mono); font-size: 8px; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--muted); background: color-mix(in srgb, var(--ink) 3%, transparent);
+  white-space: nowrap; }
+.bc-root .bc-md .md-table tbody tr:last-child td { border-bottom: 0; }
+.bc-root .bc-md .md-table td { color: var(--ink); }
