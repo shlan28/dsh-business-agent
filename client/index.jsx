@@ -13,6 +13,7 @@ function Icon({ size = 22 }) {
 
 export function apply(ctx) {
   ctx.effect(() => registerLocale(ctx), 'business-cards: locale')
+  const t = bindT(ctx)
 
   // 打包版 DSH 没有 ⌘/Ctrl+R（菜单里只在开发版注入 reload），这里补一个页面级快捷键。
   ctx.effect(() => installReloadShortcut(typeof window === 'undefined' ? null : window), 'business-cards: reload shortcut')
