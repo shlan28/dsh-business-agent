@@ -2,6 +2,14 @@
   "name": "dsh-business-cards",
   "version": "0.1.0",
   "description": "DeepSeek Harness 插件：人脉助手——私人商业人脉名片墙，左侧档案 + 右侧 DSH 会话。",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shlan28/dsh-business-agent.git"
+  },
+  "homepage": "https://github.com/shlan28/dsh-business-agent#readme",
+  "bugs": {
+    "url": "https://github.com/shlan28/dsh-business-agent/issues"
+  },
   "type": "module",
   "main": "./src/host.js",
   "exports": {
