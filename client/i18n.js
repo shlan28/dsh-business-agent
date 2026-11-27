@@ -100,6 +100,7 @@ const EN = {
   我的名片: 'My card',
   我的档案: 'My profile',
   编辑我的名片: 'Edit my card',
+  也可以让我在会话里补全: 'or let me fill the rest in chat',
   仅本机: 'Local only',
   还没有档案: 'No profile yet',
   还没有写现在最需要什么: 'Nothing you need yet',

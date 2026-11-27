@@ -41,7 +41,7 @@ function MePlate({ me }) {
 }
 
 /** 我的名片：左边是卡与档案，右边是一段专门用来「让 DSH 问我」的会话。 */
-export function MyCard({ me, questions, t, onBack, onToast, onMeChanged, onRefresh }) {
+export function MyCard({ me, questions, t, onBack, onEdit, onToast, onMeChanged, onRefresh }) {
   const [flipped, setFlipped] = React.useState(false)
   const identity = me.identity || {}
   const needs = me.needs || []
@@ -75,6 +75,7 @@ export function MyCard({ me, questions, t, onBack, onToast, onMeChanged, onRefre
         </span>
         <div className="dactions">
           <span className="mono dim">{pending.length ? `${pending.length} ${t('个问题还没答')}` : t('档案已齐')}</span>
+          <button className="ghost solid" onClick={onEdit}>{t('编辑我的名片')}</button>
         </div>
       </div>
 
@@ -489,3 +490,192 @@ function MeChat({ me, questions, t, onToast, onMeChanged, onRefresh }) {
     </section>
   )
 }
+
+const NEED_PREFIX = { 资金: 'funding', 客户: 'clients', 伙伴: 'partners', 招人: 'hiring', 信息: 'info' }
+
+const linesOf = list => (Array.isArray(list) ? list : []).map(item => item.text || '').filter(Boolean).join('\n')
+
+const splitLines = value =>
+  String(value || '')
+    .split('\n')
+    .map(line => line.trim())
+    .filter(Boolean)
+
+function parseNeeds(value) {
+  return splitLines(value).map(line => {
+    const match = line.match(/^(资金|客户|伙伴|招人|信息)[:：]\s*(.+)$/)
+    return match ? { kind: NEED_PREFIX[match[1]], text: match[2] } : { kind: 'other', text: line }
+  })
+}
+
+const EMPTY_DRAFT = {
+  name: '',
+  nameEn: '',
+  title: '',
+  company: '',
+  city: '',
+  stage: '',
+  oneLiner: '',
+  goals: '',
+  needs: '',
+  offers: '',
+  tone: '',
+  channel: '',
+  cadence: '',
+  redLines: '',
+}
+
+function draftOf(me) {
+  const identity = me?.identity || {}
+  const prefs = me?.preferences || {}
+  return {
+    name: identity.name || '',
+    nameEn: identity.nameEn || '',
+    title: identity.title || '',
+    company: identity.company || '',
+    city: identity.city || '',
+    stage: identity.stage || '',
+    oneLiner: identity.oneLiner || '',
+    goals: linesOf(me?.goals),
+    needs: (me?.needs || []).map(item => `${NEED_LABELS[item.kind] || '其他'}：${item.text}`).join('\n'),
+    offers: linesOf(me?.offers),
+    tone: prefs.tone || '',
+    channel: prefs.channel || '',
+    cadence: prefs.cadence || '',
+    redLines: (prefs.redLines || []).join('\n'),
+  }
+}
+
+function patchFromDraft(draft) {
+  return {
+    identity: {
+      name: draft.name,
+      nameEn: draft.nameEn,
+      title: draft.title,
+      company: draft.company,
+      city: draft.city,
+      stage: draft.stage,
+      oneLiner: draft.oneLiner,
+    },
+    goals: splitLines(draft.goals).map(text => ({ text })),
+    needs: parseNeeds(draft.needs),
+    offers: splitLines(draft.offers).map(text => ({ text })),
+    preferences: {
+      tone: draft.tone,
+      channel: draft.channel,
+      cadence: draft.cadence,
+      redLines: splitLines(draft.redLines),
+    },
+  }
+}
+
+/** 手动编辑我的档案：会话补全之外的精确编辑入口。 */
+export function MeEditor({ me, t, onSave, onClose }) {
+  const [draft, setDraft] = React.useState(() => draftOf(me))
+  const [busy, setBusy] = React.useState(false)
+  const [error, setError] = React.useState('')
+  const update = patch => setDraft(current => ({ ...current, ...patch }))
+
+  const submit = async () => {
+    if (busy) return
+    setBusy(true)
+    setError('')
+    try {
+      await onSave(patchFromDraft(draft))
+      onClose()
+    } catch (err) {
+      setError(err?.message || String(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div
+      className="bc-editor-backdrop"
+      onMouseDown={event => {
+        if (event.target === event.currentTarget) onClose()
+      }}
+    >
+      <div className="bc-editor" role="dialog" aria-modal="true" aria-label={t('编辑我的名片')}>
+        <div className="bc-editor-head">
+          <div>
+            <div className="mono dim">MY CARD</div>
+            <div className="bc-editor-title">{t('编辑我的名片')}</div>
+          </div>
+          <button className="bc-editor-close" onClick={onClose} aria-label={t('收起')}>×</button>
+        </div>
+
+        <div className="bc-form">
+          <label className="bc-field">
+            <span>{t('姓名')}</span>
+            <input value={draft.name} onChange={event => update({ name: event.target.value })} autoFocus />
+          </label>
+          <label className="bc-field">
+            <span>{t('英文名')}</span>
+            <input value={draft.nameEn} onChange={event => update({ nameEn: event.target.value })} />
+          </label>
+          <label className="bc-field">
+            <span>{t('角色')}</span>
+            <input value={draft.title} onChange={event => update({ title: event.target.value })} />
+          </label>
+          <label className="bc-field">
+            <span>{t('公司')}</span>
+            <input value={draft.company} onChange={event => update({ company: event.target.value })} />
+          </label>
+          <label className="bc-field">
+            <span>{t('阶段')}</span>
+            <input value={draft.stage} onChange={event => update({ stage: event.target.value })} placeholder="种子轮 / A 轮 / 已盈利" />
+          </label>
+          <label className="bc-field">
+            <span>{t('城市')}</span>
+            <input value={draft.city} onChange={event => update({ city: event.target.value })} />
+          </label>
+          <label className="bc-field wide">
+            <span>{t('一句话说清你在做什么')}</span>
+            <input value={draft.oneLiner} onChange={event => update({ oneLiner: event.target.value })} />
+          </label>
+          <label className="bc-field wide">
+            <span>{t('今年目标')} · {t('每行一条')}</span>
+            <textarea value={draft.goals} onChange={event => update({ goals: event.target.value })} />
+          </label>
+          <label className="bc-field wide">
+            <span>{t('现在最需要什么')} · {t('每行一条')}，可用「资金：」「客户：」「伙伴：」「招人：」「信息：」开头</span>
+            <textarea value={draft.needs} onChange={event => update({ needs: event.target.value })} placeholder={'资金：Q1 前融完 500 万\n招人：懂社区运营的合伙人'} />
+          </label>
+          <label className="bc-field wide">
+            <span>{t('我能给别人的价值')} · {t('每行一条')}</span>
+            <textarea value={draft.offers} onChange={event => update({ offers: event.target.value })} />
+          </label>
+          <label className="bc-field">
+            <span>{t('沟通风格')}</span>
+            <input value={draft.tone} onChange={event => update({ tone: event.target.value })} placeholder="直接、少寒暄" />
+          </label>
+          <label className="bc-field">
+            <span>{t('首选渠道')}</span>
+            <input value={draft.channel} onChange={event => update({ channel: event.target.value })} placeholder="微信优先" />
+          </label>
+          <label className="bc-field">
+            <span>{t('维护节奏')}</span>
+            <input value={draft.cadence} onChange={event => update({ cadence: event.target.value })} placeholder="重要的人 3 周一次" />
+          </label>
+          <label className="bc-field wide">
+            <span>{t('忌讳')} · {t('每行一条')}</span>
+            <textarea value={draft.redLines} onChange={event => update({ redLines: event.target.value })} />
+          </label>
+        </div>
+
+        {error ? <div className="bc-editor-error">{error}</div> : null}
+
+        <div className="bc-editor-foot">
+          <span className="bc-editor-hint">{t('只保存在本机')} · {t('也可以让我在会话里补全')}</span>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <button className="bc-btn" onClick={onClose}>{t('取消')}</button>
+            <button className="bc-btn primary" onClick={submit} disabled={busy}>{busy ? '…' : t('保存')}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+

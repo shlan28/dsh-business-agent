@@ -4,7 +4,7 @@ import { Wall } from './wall.jsx'
 import { Person } from './person.jsx'
 import { Editor } from './editor.jsx'
 import { Composer } from './compose.jsx'
-import { MyCard } from './me.jsx'
+import { MeEditor, MyCard } from './me.jsx'
 import { TypeManager } from './types.jsx'
 
 const STORAGE_KEY = 'dsh:business-cards:open'
@@ -54,6 +54,7 @@ export function App({ ctx, t, css }) {
   const [editor, setEditor] = React.useState(null)
   const [composer, setComposer] = React.useState(false)
   const [meOpen, setMeOpen] = React.useState(false)
+  const [meEditor, setMeEditor] = React.useState(false)
   const [typesOpen, setTypesOpen] = React.useState(false)
   const autoOpenedRef = React.useRef(false)
   const [toast, setToast] = React.useState(null)
@@ -180,6 +181,22 @@ export function App({ ctx, t, css }) {
     }
   }
 
+  const saveMe = async patch => {
+    const data = await api('/op', { method: 'POST', body: { action: 'me', patch } })
+    if (data.state) {
+      setState(current => ({
+        ...current,
+        contacts: data.state.contacts,
+        revision: data.state.revision,
+        me: data.me,
+        hasMe: Boolean(data.hasMe),
+        questions: Array.isArray(data.questions) ? data.questions : current.questions,
+      }))
+    }
+    notify(t('已保存'))
+    return data
+  }
+
   const saveTypes = async list => {
     const data = await api('/op', { method: 'POST', body: { action: 'typesSave', types: list } })
     if (data.state) {
@@ -245,6 +262,7 @@ export function App({ ctx, t, css }) {
           questions={state.questions}
           t={t}
           onBack={() => setMeOpen(false)}
+          onEdit={() => setMeEditor(true)}
           onToast={notify}
           onMeChanged={refresh}
           onRefresh={refresh}
@@ -298,6 +316,15 @@ export function App({ ctx, t, css }) {
           onSave={saveContact}
           onDelete={deleteContact}
           onClose={() => setEditor(null)}
+        />
+      ) : null}
+
+      {meEditor ? (
+        <MeEditor
+          me={me}
+          t={t}
+          onSave={saveMe}
+          onClose={() => setMeEditor(false)}
         />
       ) : null}
 
