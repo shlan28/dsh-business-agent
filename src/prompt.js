@@ -1,0 +1,92 @@
+// 投给模型的档案上下文与研究指令。控制长度，只放会改变回答的信息。
+const TYPE_LABELS = {
+  investor: '投资人',
+  partner: '合作伙伴',
+  client: '客户',
+  advisor: '顾问',
+  other: '其他',
+}
+
+const KIND_LABELS = {
+  wechat: '微信',
+  meeting: '见面',
+  call: '电话',
+  email: '邮件',
+  note: '备注',
+}
+
+const one = (value, max = 300) => {
+  const text = typeof value === 'string' ? value.trim().replace(/\s+/g, ' ') : ''
+  return text.length > max ? `${text.slice(0, max)}…` : text
+}
+
+const date = value => {
+  if (!value) return ''
+  const stamp = Date.parse(value)
+  if (!Number.isFinite(stamp)) return ''
+  return new Intl.DateTimeFormat('zh-CN', {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date(stamp))
+}
+
+export function dossier(contact) {
+  const who = [contact.company, contact.role].filter(Boolean).join(' · ') || '（未填写公司与角色）'
+  const tags = Array.isArray(contact.tags) && contact.tags.length ? contact.tags.join(' / ') : '（无）'
+  const reach = [
+    contact.contact?.email && `邮箱 ${contact.contact.email}`,
+    contact.contact?.wechat && `微信 ${contact.contact.wechat}`,
+    contact.contact?.phone && `电话 ${contact.contact.phone}`,
+  ].filter(Boolean)
+  const last = Array.isArray(contact.timeline) && contact.timeline.length ? contact.timeline[0] : null
+  const research = contact.research?.summary
+    ? `${one(contact.research.summary, 400)}（更新于 ${date(contact.research.updatedAt)}，来源 ${contact.research.sources?.length || 0} 条）`
+    : '（暂无）'
+  const lines = [
+    `【人脉档案】${contact.name}${contact.nameEn ? `（${contact.nameEn}）` : ''} · ${who} · ${TYPE_LABELS[contact.type] || '其他'}${contact.city ? ` · ${contact.city}` : ''}`,
+    `标签：${tags}`,
+    `联系方式：${reach.length ? reach.join(' · ') : '（无）'}`,
+    last ? `最近互动：${date(last.at)} ${KIND_LABELS[last.kind] || '备注'} —— ${one(last.text, 240)}` : '最近互动：（无）',
+    contact.nextStep
+      ? `下一步：${contact.nextStep.at ? `${date(contact.nextStep.at)} ` : ''}${one(contact.nextStep.text, 240)}`
+      : '下一步：（无）',
+    `已有研究：${research}`,
+    contact.notes ? `备注：${one(contact.notes, 300)}` : '',
+  ]
+  return lines.filter(Boolean).join('\n')
+}
+
+const RULES = [
+  '你在帮用户维护一份本地商业人脉档案。回答围绕这个人，需要外部事实时主动检索并注明来源；不要编造联系方式、互动记录或研究结论。',
+  '如果用户只是聊天或让你起草消息，直接回答；如果完成了检索，把摘要与来源用 business_contact_research_save 写回这张卡。',
+].join('')
+
+/** 普通对话 / 研究请求的完整提示词。 */
+export function chatPrompt(contact, text, kind = 'chat') {
+  const research = kind === 'research'
+    ? '\n这次是研究请求：至少检索 3 条公开来源，区分事实与推测；最后必须调用 business_contact_research_save 写回摘要与来源。'
+    : ''
+  return `${dossier(contact)}\n\n${RULES}${research}\n\n用户：${text}`
+}
+
+/** 研究请求的默认关注点。 */
+export function researchInstruction(focus) {
+  const target = typeof focus === 'string' && focus.trim() ? focus.trim() : '最近半年的公开动态、关注方向，以及和我们的潜在合作点'
+  return target
+}
+
+/** 一句话新建：让 DSH 直接把用户的话整理成一张名片。 */
+export function composePrompt(text, first = true) {
+  const task = [
+    '你在帮用户用一句话新建一张商业人脉名片。',
+    first ? `用户说：${text}` : `用户补充：${text}`,
+    '',
+    '请直接调用 business_contact_save 建档，不要反问，也不要搜索网页。',
+    '能从这句话推断的字段就填：姓名、英文名、角色、公司、类型（investor/partner/client/advisor/other，判断不了用 other）、城市、标签（最多 4 个）、邮箱/微信/电话、备注。',
+    '不确定的字段留空，不要编造。姓名是必填；如果这句话里确实没有名字，只回一句「这个人的名字是？」。',
+    '建档成功后只回复「已建好」，不要重复整份档案。',
+  ]
+  return task.join('\n')
+}
