@@ -70,7 +70,7 @@ function normalizeTags(value) {
 }
 
 function normalizeSource(value) {
-  const url = text(value?.url, 2048)
+  const url = text(typeof value === 'string' ? value : value?.url, 2048)
   if (!url) return null
   try {
     const parsed = new URL(url)

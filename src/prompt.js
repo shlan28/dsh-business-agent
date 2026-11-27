@@ -174,10 +174,11 @@ export function chatPrompt(contact, text, kind = 'chat', me = null) {
     : '\n目前还没有我的档案；判断「值不值得见 / 该聊什么」时说明信息不足，并建议我先补全自己的情况。'
   const research = kind === 'research'
     ? '\n这次是研究请求，必须真的联网检索（搜索网页 / 抓取页面），不能只靠已有记忆：'
-      + '\n1) 至少找到 3 条公开来源，逐条记下 URL 与站点；'
+      + '\n1) 搜索 + 抓取合计最多 6 次，够 3 条可靠来源就收尾，别逐个页面翻下去；'
       + '\n2) 正文区分「事实（有来源）」和「推测」，重要结论后标注来源；'
-      + '\n3) 最后调用 business_contact_research_save 追加一条新记录：summary 写全文结论，sources 传 URL 列表，title 用一句话概括这次查到的重点；'
-      + '\n4) 如果一条可靠来源都搜不到，就在对话里说明搜不到，不要调用保存工具、不要编造来源。'
+      + '\n3) 最后调用 business_contact_research_save 追加一条新记录：summary 控制在 800 字以内，sources 直接传 URL 字符串数组（2-5 条），title 一句话概括重点；'
+      + '\n4) 保存工具如果报错/参数被拒，把 summary 压到 400 字以内、来源减到 3 条再试一次；'
+      + '\n5) 如果一条可靠来源都搜不到，就在对话里说明搜不到，不要调用保存工具、不要编造来源。'
     : ''
   return `${mine ? `${mine}\n\n` : ''}${dossier(contact)}\n\n${RULES}${mineFocus}${research}${matching}\n\n用户：${text}`
 }

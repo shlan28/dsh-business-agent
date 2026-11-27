@@ -1,6 +1,7 @@
 import React from 'react'
 import { api } from './api.js'
 import { ArrowIcon, SearchIcon } from './icons.jsx'
+import { humanizeError } from './errors.js'
 import { Markdown } from './markdown.jsx'
 import { timeLabel } from './ui.jsx'
 
@@ -188,9 +189,11 @@ export function Chat({ contact, t, capabilities, onToast, onContactChanged }) {
             )
           }
           if (entry.role === 'error') {
+            const failure = humanizeError(entry.text)
             return (
               <div className="msg error" key={entry.seq}>
-                {entry.text}
+                {failure.message}
+                {failure.detail ? <div className="bc-err-detail mono">{failure.detail}</div> : null}
               </div>
             )
           }
@@ -210,7 +213,15 @@ export function Chat({ contact, t, capabilities, onToast, onContactChanged }) {
           </div>
         ) : null}
 
-        {error ? <div className="msg error">{error}</div> : null}
+        {error ? (() => {
+          const failure = humanizeError(error)
+          return (
+            <div className="msg error">
+              {failure.message}
+              {failure.detail ? <div className="bc-err-detail mono">{failure.detail}</div> : null}
+            </div>
+          )
+        })() : null}
       </div>
 
       <div className="composer">

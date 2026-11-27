@@ -520,3 +520,7 @@
   white-space: nowrap; }
 .bc-root .bc-md .md-table tbody tr:last-child td { border-bottom: 0; }
 .bc-root .bc-md .md-table td { color: var(--ink); }
+
+/* 错误条：人话主句 + 原始信息折叠小字 */
+.bc-root .bc-err-detail { margin-top: 5px; font-size: 8px; line-height: 1.6; letter-spacing: .02em;
+  color: color-mix(in srgb, #9a4a41 65%, transparent); word-break: break-word; }

@@ -1,6 +1,7 @@
 import React from 'react'
 import { api } from './api.js'
 import { Body } from './chat.jsx'
+import { humanizeError } from './errors.js'
 import { ArrowIcon, ChevronLeftIcon } from './icons.jsx'
 import { ACCENTS, dateLabel, initialOf, relativeTime, timeLabel } from './ui.jsx'
 
@@ -400,9 +401,11 @@ function MeChat({ me, questions, t, onToast, onMeChanged, onRefresh }) {
             )
           }
           if (entry.role === 'error') {
+            const failure = humanizeError(entry.text)
             return (
               <div className="msg error" key={entry.seq}>
-                {entry.text}
+                {failure.message}
+                {failure.detail ? <div className="bc-err-detail mono">{failure.detail}</div> : null}
               </div>
             )
           }
@@ -422,7 +425,15 @@ function MeChat({ me, questions, t, onToast, onMeChanged, onRefresh }) {
           </div>
         ) : null}
 
-        {error ? <div className="msg error">{error}</div> : null}
+        {error ? (() => {
+          const failure = humanizeError(error)
+          return (
+            <div className="msg error">
+              {failure.message}
+              {failure.detail ? <div className="bc-err-detail mono">{failure.detail}</div> : null}
+            </div>
+          )
+        })() : null}
       </div>
 
       <div className="composer">

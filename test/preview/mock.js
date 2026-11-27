@@ -171,7 +171,22 @@ export function installMockApi({ dark = false, emptyProfile = false } = {}) {
   let revision = 7
   let meChat = []
   let meChatRunning = false
-  const chats = new Map([['c_shen', { seq: 4, entries: DEMO_CHAT, sessionId: 's_preview_shen', running: false }]])
+  const chats = new Map([
+    ['c_shen', { seq: 4, entries: DEMO_CHAT, sessionId: 's_preview_shen', running: false }],
+    [
+      'c_lin',
+      {
+        seq: 3,
+        sessionId: 's_preview_lin',
+        running: false,
+        entries: [
+          { seq: 1, role: 'user', text: '研究此人：最近的公开动态', at: '2026-11-27T18:20:00+08:00' },
+          { seq: 2, role: 'tool', name: 'web_search', text: '搜索公开信息', at: '2026-11-27T18:20:05+08:00' },
+          { seq: 3, role: 'error', text: 'DeepSeek Messages stream: tool input is invalid JSON', at: '2026-11-27T18:20:40+08:00' },
+        ],
+      },
+    ],
+  ])
   const runs = new Map()
   const composes = new Map()
   let composeSeq = 0

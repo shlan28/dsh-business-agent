@@ -81,13 +81,20 @@ test('research appends one dated document per round with its sources', async () 
     assert.equal(second.research.entries[0].title, '刚拿了一轮融资', '缺标题时用首行兜底')
     assert.notEqual(second.research.entries[0].id, second.research.entries[1].id)
 
+    const stringSources = await store.appendResearch(created.id, {
+      summary: '来源用纯 URL 字符串也能存',
+      sources: ['https://example.com/b', 'not-a-url'],
+    })
+    assert.equal(stringSources.research.entries[0].sources.length, 1, '字符串来源被规整成 {url,site,title}')
+    assert.equal(stringSources.research.entries[0].sources[0].site, 'example.com')
+
     await assert.rejects(
       () => store.appendResearch(created.id, { summary: '没有来源', sources: [] }),
       /来源/,
     )
 
     const reloaded = await new Store(dir).load()
-    assert.equal(reloaded.find('顾宁').research.entries.length, 2)
+    assert.equal(reloaded.find('顾宁').research.entries.length, 3)
   })
 })
 
