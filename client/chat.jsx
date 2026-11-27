@@ -29,7 +29,7 @@ function Inline({ text }) {
   return nodes
 }
 
-function Body({ text }) {
+export function Body({ text }) {
   return <div className="bc-body-text">{text.split('\n').map((line, i) => <React.Fragment key={i}>{i ? <br /> : null}{<Inline text={line} />}</React.Fragment>)}</div>
 }
 

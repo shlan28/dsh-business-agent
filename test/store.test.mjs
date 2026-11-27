@@ -52,20 +52,78 @@ test('notes update timeline and last contact', async () => {
   })
 })
 
-test('research accepts http sources and drops javascript urls', async () => {
-  await withStore(async store => {
+test('research appends one dated document per round with its sources', async () => {
+  await withStore(async (store, dir) => {
     const created = await store.upsert({ name: '顾宁' })
-    const saved = await store.saveResearch(created.id, {
+    const first = await store.appendResearch(created.id, {
+      title: '品牌联名',
       summary: '最近在做城市主题联名',
       sources: [
         { title: '36kr', url: 'https://36kr.com/p/1' },
         { title: 'bad', url: 'javascript:alert(1)' },
       ],
+      at: '2026-11-01T02:00:00+08:00',
     })
-    assert.equal(saved.research.sources.length, 1)
-    assert.equal(saved.research.sources[0].site, '36kr.com')
-    assert.ok(saved.research.updatedAt)
+    assert.equal(first.research.entries.length, 1)
+    const doc = first.research.entries[0]
+    assert.equal(doc.title, '品牌联名')
+    assert.equal(doc.sources.length, 1, 'javascript: url 被丢弃')
+    assert.equal(doc.sources[0].site, '36kr.com')
+    assert.equal(doc.at, '2026-10-31T18:00:00.000Z')
+    assert.equal(first.research.updatedAt, doc.at)
+
+    const second = await store.appendResearch(created.id, {
+      summary: '刚拿了一轮融资',
+      sources: [{ url: 'https://example.com/a' }],
+    })
+    assert.equal(second.research.entries.length, 2, '第二次研究不覆盖第一次')
+    assert.equal(second.research.entries[0].summary, '刚拿了一轮融资')
+    assert.equal(second.research.entries[0].title, '刚拿了一轮融资', '缺标题时用首行兜底')
+    assert.notEqual(second.research.entries[0].id, second.research.entries[1].id)
+
+    await assert.rejects(
+      () => store.appendResearch(created.id, { summary: '没有来源', sources: [] }),
+      /来源/,
+    )
+
+    const reloaded = await new Store(dir).load()
+    assert.equal(reloaded.find('顾宁').research.entries.length, 2)
   })
+})
+
+test('legacy single research record is migrated into one document', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'bc-store-'))
+  try {
+    await writeFile(
+      join(dir, 'contacts.json'),
+      JSON.stringify({
+        schema: 1,
+        revision: 3,
+        contacts: [
+          {
+            id: 'c_legacy',
+            no: 1,
+            name: '沈亦舟',
+            type: 'investor',
+            timeline: [],
+            research: {
+              summary: '旧版单份研究',
+              sources: [{ title: 'X', url: 'https://x.example.com/1' }],
+              updatedAt: '2026-10-01T00:00:00.000Z',
+            },
+          },
+        ],
+      }),
+    )
+    const store = await new Store(dir).load()
+    const contact = store.find('沈亦舟')
+    assert.equal(contact.research.entries.length, 1)
+    assert.equal(contact.research.entries[0].summary, '旧版单份研究')
+    assert.equal(contact.research.entries[0].at, '2026-10-01T00:00:00.000Z')
+    assert.equal(contact.research.entries[0].sources[0].site, 'x.example.com')
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
 })
 
 test('chat entries are ordered, trimmed and incrementally readable', async () => {

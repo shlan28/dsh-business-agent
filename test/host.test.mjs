@@ -173,6 +173,28 @@ test('host routes, chat wiring and agent tools work together', async () => {
     const research = await researchTool.execute({ id: contactId, focus: '最近的公开动态' })
     assert.equal(research.ok, true)
     assert.equal(prompts.length, 3)
+    assert.match(prompts[2].content[0].text, /联网检索/)
+
+    const researchSaveTool = tools.find(tool => tool.name === 'business_contact_research_save')
+    const wrote = await researchSaveTool.execute({
+      id: contactId,
+      title: '公开动态',
+      focus: '最近的公开动态',
+      summary: '查到她最近在投 AI 应用。',
+      sources: [{ title: '36kr', url: 'https://36kr.com/p/2' }],
+    })
+    assert.equal(wrote.ok, true)
+    assert.ok(wrote.at, '记录带检索时间')
+    assert.equal(wrote.count, 1)
+    const withResearch = await call('GET', '/business-cards/state')
+    const doc = withResearch.data.contacts[0].research.entries[0]
+    assert.equal(doc.title, '公开动态')
+    assert.equal(doc.summary, '查到她最近在投 AI 应用。')
+    assert.equal(doc.sources[0].site, '36kr.com')
+    assert.equal(doc.focus, '最近的公开动态')
+
+    const banned = await researchSaveTool.execute({ id: contactId, summary: '没有来源的结论', sources: [] })
+    assert.equal(banned.ok, false, '没有来源不写回')
 
     await call('POST', '/business-cards/op', {
       action: 'note',

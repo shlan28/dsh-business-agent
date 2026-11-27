@@ -41,8 +41,10 @@ export function dossier(contact) {
     contact.contact?.phone && `电话 ${contact.contact.phone}`,
   ].filter(Boolean)
   const last = Array.isArray(contact.timeline) && contact.timeline.length ? contact.timeline[0] : null
-  const research = contact.research?.summary
-    ? `${one(contact.research.summary, 400)}（更新于 ${date(contact.research.updatedAt)}，来源 ${contact.research.sources?.length || 0} 条）`
+  const entries = Array.isArray(contact.research?.entries) ? contact.research.entries : []
+  const latest = entries[0] || null
+  const research = latest
+    ? `共 ${entries.length} 份，最新一份 ${date(latest.at)}·${latest.title}：${one(latest.summary, 400)}（来源 ${latest.sources?.length || 0} 条）`
     : '（暂无）'
   const lines = [
     `【人脉档案】${contact.name}${contact.nameEn ? `（${contact.nameEn}）` : ''} · ${who} · ${TYPE_LABELS[contact.type] || '其他'}${contact.city ? ` · ${contact.city}` : ''}`,
@@ -59,14 +61,18 @@ export function dossier(contact) {
 }
 
 const RULES = [
-  '你在帮用户维护一份本地商业人脉档案。回答围绕这个人，需要外部事实时主动检索并注明来源；不要编造联系方式、互动记录或研究结论。',
-  '如果用户只是聊天或让你起草消息，直接回答；如果完成了检索，把摘要与来源用 business_contact_research_save 写回这张卡。',
+  '你在帮用户维护一份本地商业人脉档案。回答围绕这个人，需要外部事实时主动联网检索并注明来源；不要编造联系方式、互动记录或研究结论。',
+  '如果用户只是聊天或让你起草消息，直接回答；如果完成了检索，用 business_contact_research_save 往这张卡追加一条研究记录（每条都要带来源 URL 与检索日期，不要覆盖旧记录）。',
 ].join('')
 
 /** 普通对话 / 研究请求的完整提示词。 */
 export function chatPrompt(contact, text, kind = 'chat') {
   const research = kind === 'research'
-    ? '\n这次是研究请求：至少检索 3 条公开来源，区分事实与推测；最后必须调用 business_contact_research_save 写回摘要与来源。'
+    ? '\n这次是研究请求，必须真的联网检索（搜索网页 / 抓取页面），不能只靠已有记忆：'
+      + '\n1) 至少找到 3 条公开来源，逐条记下 URL 与站点；'
+      + '\n2) 正文区分「事实（有来源）」和「推测」，重要结论后标注来源；'
+      + '\n3) 最后调用 business_contact_research_save 追加一条新记录：summary 写全文结论，sources 传 URL 列表，title 用一句话概括这次查到的重点；'
+      + '\n4) 如果一条可靠来源都搜不到，就在对话里说明搜不到，不要调用保存工具、不要编造来源。'
     : ''
   return `${dossier(contact)}\n\n${RULES}${research}\n\n用户：${text}`
 }

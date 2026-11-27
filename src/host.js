@@ -292,7 +292,7 @@ export function apply(ctx, config = {}) {
         return { ok: true, contact, state: store.snapshot() }
       }
       case 'research': {
-        const contact = await store.saveResearch(body?.id, body)
+        const contact = await store.appendResearch(body?.id, body)
         return { ok: true, contact, state: store.snapshot() }
       }
       default:
@@ -466,7 +466,7 @@ export function apply(ctx, config = {}) {
       tags: contact.tags,
       lastContactAt: contact.lastContactAt,
       nextStep: contact.nextStep,
-      hasResearch: Boolean(contact.research?.summary),
+      hasResearch: Boolean(contact.research?.entries?.length),
     })
 
     const toolList = [
@@ -544,16 +544,18 @@ export function apply(ctx, config = {}) {
       {
         name: 'business_contact_research_save',
         description:
-          'Write a research brief and its sources back to a contact card after searching. Call this at the end of a research turn so the card\'s RESEARCH section stays current.',
+          'Append ONE research record (a dated document with its sources) to a contact card. Each research turn adds a new record; never overwrite earlier ones. Requires at least one real HTTP(S) source found via web search — if nothing could be found, do not call this tool.',
         parameters: {
           type: 'object',
           additionalProperties: false,
           properties: {
             id: { type: 'string', description: 'Contact id or exact name.' },
-            summary: { type: 'string', description: 'Concise findings, 3-6 sentences.' },
+            summary: { type: 'string', description: 'The brief itself, 3-8 sentences; mark facts vs. guesses.' },
+            title: { type: 'string', description: 'One-line title for this record, e.g. "近半年投资方向".' },
+            focus: { type: 'string', description: 'What this round was asked to look into.' },
             sources: {
               type: 'array',
-              description: 'Up to 8 HTTP(S) sources.',
+              description: '1-8 HTTP(S) sources actually used in this round.',
               items: {
                 type: 'object',
                 additionalProperties: false,
@@ -565,7 +567,7 @@ export function apply(ctx, config = {}) {
               },
             },
           },
-          required: ['id', 'summary'],
+          required: ['id', 'summary', 'sources'],
         },
       },
       {
@@ -653,15 +655,21 @@ export function apply(ctx, config = {}) {
                   case 'business_contact_research_save': {
                     const target = store.find(args?.id)
                     if (!target) return fail('找不到这张名片')
-                    const contact = await store.saveResearch(target.id, {
+                    const contact = await store.appendResearch(target.id, {
                       summary: args?.summary,
+                      title: args?.title,
+                      focus: args?.focus,
                       sources: args?.sources,
                     })
+                    const entry = contact.research.entries[0]
                     return {
                       ok: true,
                       id: contact.id,
-                      research: contact.research,
-                      updatedAt: contact.research.updatedAt,
+                      researchId: entry?.id,
+                      at: entry?.at,
+                      title: entry?.title,
+                      sources: entry?.sources?.length || 0,
+                      count: contact.research.entries.length,
                     }
                   }
                   case 'business_contact_research': {
@@ -687,7 +695,7 @@ export function apply(ctx, config = {}) {
         ctx.get('systemPrompt')?.section({
           name: 'business-cards',
           order: 58,
-          text: 'The user keeps a private business-contact wall (investors, partners, clients, advisors) in the sidebar. Use the business_contact_* tools when they mention a specific person or company, ask you to add someone, record an interaction, prepare for a meeting, or look someone up. Never invent contact details. After researching, write the brief back with business_contact_research_save.',
+          text: 'The user keeps a private business-contact wall (investors, partners, clients, advisors) in the sidebar. Use the business_contact_* tools when they mention a specific person or company, ask you to add someone, record an interaction, prepare for a meeting, or look someone up. Never invent contact details. Research means real web search: append each round as its own dated record with business_contact_research_save (summary + HTTP(S) sources), never overwrite older records.',
         }),
       'business-cards: prompt section',
     )

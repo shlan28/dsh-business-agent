@@ -16,6 +16,8 @@ export const LIMITS = {
   note: 4_000,
   timeline: 200,
   research: 8_000,
+  researchEntries: 40,
+  researchTitle: 120,
   sources: 8,
   chatEntries: 200,
   chatText: 8_000,
@@ -70,15 +72,48 @@ function normalizeSource(value) {
   }
 }
 
-function normalizeResearch(value) {
+function titleFromSummary(summary) {
+  const line = String(summary || '')
+    .split(/\n/)
+    .map(part => part.trim().replace(/^[#>\-*\s]+/, ''))
+    .find(Boolean) || ''
+  return line.length > 42 ? `${line.slice(0, 42)}…` : line
+}
+
+/** 一条研究记录：一次检索 = 一份带日期与来源的文档。 */
+function normalizeResearchEntry(value) {
   const summary = text(value?.summary, LIMITS.research)
   const sources = Array.isArray(value?.sources)
     ? value.sources.map(normalizeSource).filter(Boolean).slice(0, LIMITS.sources)
     : []
+  if (!summary && !sources.length) return null
   return {
+    id: text(value?.id, 80) || `r_${randomUUID()}`,
+    at: iso(value?.at) || iso(value?.updatedAt) || nowIso(),
+    title: text(value?.title, LIMITS.researchTitle) || titleFromSummary(summary) || '研究记录',
     summary,
+    focus: text(value?.focus, 200),
     sources,
-    updatedAt: iso(value?.updatedAt) || (summary || sources.length ? nowIso() : null),
+  }
+}
+
+/** 研究是一组文档（最新在前）；旧的单份 { summary, sources } 折算成 1 条。 */
+function normalizeResearch(value) {
+  const entries = []
+  const seen = new Set()
+  const add = raw => {
+    const entry = normalizeResearchEntry(raw)
+    if (!entry || seen.has(entry.id)) return
+    seen.add(entry.id)
+    entries.push(entry)
+  }
+  if (Array.isArray(value?.entries)) value.entries.forEach(add)
+  else add(value)
+  entries.sort((a, b) => Date.parse(b.at) - Date.parse(a.at))
+  const kept = entries.slice(0, LIMITS.researchEntries)
+  return {
+    updatedAt: kept[0]?.at || iso(value?.updatedAt) || null,
+    entries: kept,
   }
 }
 
@@ -110,7 +145,7 @@ export function normalizeContact(raw, previous = null) {
     id: `c_${randomUUID()}`,
     no: 0,
     timeline: [],
-    research: { summary: '', sources: [], updatedAt: null },
+    research: { updatedAt: null, entries: [] },
     sessionId: null,
     createdAt: nowIso(),
   }
@@ -148,7 +183,7 @@ export function normalizeContact(raw, previous = null) {
     notes: text(has('notes') ? source.notes : previous?.notes, LIMITS.notes),
     lastContactAt: iso(has('lastContactAt') ? source.lastContactAt : previous?.lastContactAt),
     timeline: previous?.timeline ? clone(previous.timeline) : [],
-    research: previous?.research ? clone(previous.research) : { summary: '', sources: [], updatedAt: null },
+    research: previous?.research ? clone(previous.research) : { updatedAt: null, entries: [] },
     sessionId: previous?.sessionId || null,
     createdAt: previous?.createdAt || base.createdAt,
     updatedAt: nowIso(),
@@ -349,15 +384,15 @@ export class Store {
     return publicContact(contact)
   }
 
-  async saveResearch(id, input) {
+  /** 追加一条研究记录：一次检索一份文档，带上日期与来源。 */
+  async appendResearch(id, input) {
     const contact = this.find(id)
     if (!contact) throw new HttpError(404, '找不到这张名片')
-    const summary = text(input?.summary, LIMITS.research)
-    const sources = Array.isArray(input?.sources)
-      ? input.sources.map(normalizeSource).filter(Boolean).slice(0, LIMITS.sources)
-      : []
-    if (!summary && !sources.length) throw new HttpError(400, '研究内容为空')
-    contact.research = { summary, sources, updatedAt: nowIso() }
+    const entry = normalizeResearchEntry({ ...(input || {}), at: input?.at || nowIso() })
+    if (!entry || !entry.summary) throw new HttpError(400, '研究内容为空')
+    if (!entry.sources.length) throw new HttpError(400, '研究必须附上来源：请联网检索后重试')
+    const previous = Array.isArray(contact.research?.entries) ? contact.research.entries : []
+    contact.research = normalizeResearch({ entries: [entry, ...previous] })
     contact.updatedAt = nowIso()
     await this.persist()
     return publicContact(contact)

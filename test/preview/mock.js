@@ -13,13 +13,27 @@ export const CONTACTS = [
       { id: 't3', at: '2026-09-12T11:00:00+08:00', kind: 'email', text: '发了一份市场地图，已读。' },
     ],
     research: {
-      summary: '近 90 天公开露面集中在 AI 应用层的商业化：反复提到「先看留存，再看 ARPU」，并在 9 月闭门会上把「AI + 垂直工作流」列为今年重点。',
-      sources: [
-        { title: '红杉闭门会：AI 应用层的下一步', url: 'https://36kr.com/p/1', site: '36kr.com' },
-        { title: '沈亦舟：先看留存，再看 ARPU', url: 'https://latepost.com/p/2', site: 'latepost.com' },
-        { title: '2026 早期投资重点', url: 'https://sequoia.cn/p/3', site: 'sequoia.cn' },
-      ],
       updatedAt: '2026-11-24T12:00:00+08:00',
+      entries: [
+        {
+          id: 'r_shen_2', at: '2026-11-24T12:00:00+08:00', title: 'AI 应用层的商业化口径',
+          focus: '最近半年的公开动态、关注方向，以及和我们的潜在合作点',
+          summary: '近 90 天公开露面集中在 AI 应用层的商业化：反复提到「先看留存，再看 ARPU」，并在 9 月闭门会上把「AI + 垂直工作流」列为今年重点。\n\n事实：9 月闭门会公开纪要里出现「先看留存，再看 ARPU」的原话（36kr）。\n推测：她对「AI 客服 + 行业模板」的兴趣可能高于通用 agent。',
+          sources: [
+            { title: '红杉闭门会：AI 应用层的下一步', url: 'https://36kr.com/p/1', site: '36kr.com' },
+            { title: '沈亦舟：先看留存，再看 ARPU', url: 'https://latepost.com/p/2', site: 'latepost.com' },
+            { title: '2026 早期投资重点', url: 'https://sequoia.cn/p/3', site: 'sequoia.cn' },
+          ],
+        },
+        {
+          id: 'r_shen_1', at: '2026-09-20T18:30:00+08:00', title: '9 月闭门会与赛道判断',
+          focus: '投资组合与赛道偏好',
+          summary: '9 月闭门会上把「AI + 垂直工作流」列为本年重点，提到已投的两家客服 SaaS 增长都在翻倍。',
+          sources: [
+            { title: '红杉闭门会纪要', url: 'https://36kr.com/p/1', site: '36kr.com' },
+          ],
+        },
+      ],
     },
     sessionId: 's_preview_shen', createdAt: '2026-10-01T10:00:00+08:00', updatedAt: '2026-11-24T10:12:00+08:00',
   },
@@ -30,7 +44,17 @@ export const CONTACTS = [
     nextStep: { at: '2026-12-02T10:00:00+08:00', text: '把联名方案的第二版发过去，重点改预算和排期。' },
     notes: '', lastContactAt: '2026-11-20T10:00:00+08:00',
     timeline: [{ id: 't1', at: '2026-11-09T10:00:00+08:00', kind: 'meeting', text: '看完联名方案，认可调性，预算要再压 15%。' }],
-    research: { summary: '今年把重心放在线下体验和内容联名，新店开在安福路；公开采访里强调「不追规模，先把单店模型跑正」。', sources: [{ title: '品牌星球', url: 'https://brandstar.com.cn/a', site: 'brandstar.com.cn' }], updatedAt: '2026-11-18T09:00:00+08:00' },
+    research: {
+      updatedAt: '2026-11-18T09:00:00+08:00',
+      entries: [
+        {
+          id: 'r_zhou_1', at: '2026-11-18T09:00:00+08:00', title: '线下体验与联名节奏',
+          focus: '今年的品牌动作',
+          summary: '今年把重心放在线下体验和内容联名，新店开在安福路；公开采访里强调「不追规模，先把单店模型跑正」。',
+          sources: [{ title: '品牌星球', url: 'https://brandstar.com.cn/a', site: 'brandstar.com.cn' }],
+        },
+      ],
+    },
     sessionId: null, createdAt: '2026-10-02T10:00:00+08:00', updatedAt: '2026-11-20T10:00:00+08:00',
   },
   {
@@ -40,7 +64,17 @@ export const CONTACTS = [
     nextStep: { at: null, text: '等她看完出海赛道的一手调研，再约一次咖啡。' },
     notes: '', lastContactAt: '2026-11-10T10:00:00+08:00',
     timeline: [{ id: 't1', at: '2026-11-02T10:00:00+08:00', kind: 'wechat', text: '说最近在看东南亚的消费供应链。' }],
-    research: { summary: '关注消费出海与供应链，近半年频繁看东南亚市场；在公开分享里提到「本地化不是翻译，是重做渠道」。', sources: [], updatedAt: '2026-11-02T10:00:00+08:00' },
+    research: {
+      updatedAt: '2026-11-02T10:00:00+08:00',
+      entries: [
+        {
+          id: 'r_lin_1', at: '2026-11-02T10:00:00+08:00', title: '消费出海与东南亚',
+          focus: '近半年关注方向',
+          summary: '关注消费出海与供应链，近半年频繁看东南亚市场；在公开分享里提到「本地化不是翻译，是重做渠道」。',
+          sources: [],
+        },
+      ],
+    },
     sessionId: null, createdAt: '2026-10-03T10:00:00+08:00', updatedAt: '2026-11-10T10:00:00+08:00',
   },
   {
@@ -49,7 +83,7 @@ export const CONTACTS = [
     contact: { email: 'kewei@notion.so', wechat: 'chenkw', phone: '' },
     nextStep: { at: '2026-11-28T14:00:00+08:00', text: '一起过一遍 PLG 的漏斗，看看能不能互推。' },
     notes: '', lastContactAt: '2026-11-21T10:00:00+08:00',
-    timeline: [], research: { summary: '', sources: [], updatedAt: null },
+    timeline: [], research: { updatedAt: null, entries: [] },
     sessionId: null, createdAt: '2026-10-04T10:00:00+08:00', updatedAt: '2026-11-21T10:00:00+08:00',
   },
   {
@@ -57,7 +91,7 @@ export const CONTACTS = [
     city: '长沙', accent: 'rose', tags: ['联名', '内容'],
     contact: { email: 'ning@saturnbird.com', wechat: 'guning', phone: '' },
     nextStep: null, notes: '', lastContactAt: '2026-11-06T10:00:00+08:00',
-    timeline: [], research: { summary: '', sources: [], updatedAt: null },
+    timeline: [], research: { updatedAt: null, entries: [] },
     sessionId: null, createdAt: '2026-10-05T10:00:00+08:00', updatedAt: '2026-11-06T10:00:00+08:00',
   },
   {
@@ -65,7 +99,7 @@ export const CONTACTS = [
     city: '深圳', accent: 'butter', tags: ['云', '渠道'],
     contact: { email: 'chi@shanhaiyun.com', wechat: 'suchi', phone: '' },
     nextStep: null, notes: '', lastContactAt: '2026-11-19T10:00:00+08:00',
-    timeline: [], research: { summary: '', sources: [], updatedAt: null },
+    timeline: [], research: { updatedAt: null, entries: [] },
     sessionId: null, createdAt: '2026-10-06T10:00:00+08:00', updatedAt: '2026-11-19T10:00:00+08:00',
   },
   {
@@ -73,7 +107,7 @@ export const CONTACTS = [
     city: '杭州', accent: 'blue', tags: ['种子轮', '硬件'],
     contact: { email: 'yi.luo@hey.com', wechat: 'luoyi_angel', phone: '' },
     nextStep: null, notes: '', lastContactAt: '2026-11-15T10:00:00+08:00',
-    timeline: [], research: { summary: '', sources: [], updatedAt: null },
+    timeline: [], research: { updatedAt: null, entries: [] },
     sessionId: null, createdAt: '2026-10-07T10:00:00+08:00', updatedAt: '2026-11-15T10:00:00+08:00',
   },
   {
@@ -81,7 +115,7 @@ export const CONTACTS = [
     city: '成都', accent: 'sage', tags: ['定位', '叙事'],
     contact: { email: 'lu@bai.studio', wechat: 'bailu_studio', phone: '' },
     nextStep: null, notes: '', lastContactAt: '2026-09-18T10:00:00+08:00',
-    timeline: [], research: { summary: '', sources: [], updatedAt: null },
+    timeline: [], research: { updatedAt: null, entries: [] },
     sessionId: null, createdAt: '2026-10-08T10:00:00+08:00', updatedAt: '2026-09-18T10:00:00+08:00',
   },
 ]
@@ -157,7 +191,7 @@ export function installMockApi({ dark = false } = {}) {
           id: `c_${Date.now()}`,
           no: contacts.length + 1,
           timeline: [],
-          research: { summary: '', sources: [], updatedAt: null },
+          research: { updatedAt: null, entries: [] },
           createdAt: now(),
           updatedAt: now(),
         }
@@ -204,7 +238,7 @@ export function installMockApi({ dark = false } = {}) {
           notes: '',
           lastContactAt: now(),
           timeline: [],
-          research: { summary: '', sources: [], updatedAt: null },
+          research: { updatedAt: null, entries: [] },
           sessionId: null,
           createdAt: now(),
           updatedAt: now(),

@@ -1,7 +1,8 @@
 import React from 'react'
 import { ChevronLeftIcon, CopyIcon, RefreshIcon } from './icons.jsx'
 import { Chat } from './chat.jsx'
-import { Plate, TYPE_LABELS, dateLabel, numberLabel, relativeTime, siteOf, timeLabel } from './ui.jsx'
+import { ResearchList, ResearchModal } from './research.jsx'
+import { Plate, TYPE_LABELS, dateLabel, numberLabel, relativeTime, timeLabel } from './ui.jsx'
 
 const KIND_LABELS = { wechat: '微信', meeting: '线下', call: '电话', email: '邮件', note: '备注' }
 
@@ -25,6 +26,7 @@ export function Person({ contact, t, capabilities, onBack, onEdit, onToast, onNo
   const [noteKind, setNoteKind] = React.useState('note')
   const [busy, setBusy] = React.useState(false)
   const [savingNote, setSavingNote] = React.useState(false)
+  const [researchDoc, setResearchDoc] = React.useState(null)
 
   React.useEffect(() => {
     setFlipped(false)
@@ -32,6 +34,7 @@ export function Person({ contact, t, capabilities, onBack, onEdit, onToast, onNo
     setNoteText('')
     setNoteKind('note')
     setBusy(false)
+    setResearchDoc(null)
   }, [contact.id])
 
   const copy = async value => {
@@ -71,9 +74,11 @@ export function Person({ contact, t, capabilities, onBack, onEdit, onToast, onNo
     }
   }
 
-  const research = contact.research || { summary: '', sources: [], updatedAt: null }
+  const research = contact.research || { updatedAt: null, entries: [] }
+  const researchDocs = Array.isArray(research.entries) ? research.entries : []
+  const latestResearch = researchDocs[0] || null
   const researchStale = Boolean(
-    research.updatedAt && Date.now() - Date.parse(research.updatedAt) > 30 * 24 * 60 * 60 * 1000,
+    latestResearch?.at && Date.now() - Date.parse(latestResearch.at) > 30 * 24 * 60 * 60 * 1000,
   )
   const timeline = contact.timeline || []
   const next = contact.nextStep
@@ -159,7 +164,9 @@ export function Person({ contact, t, capabilities, onBack, onEdit, onToast, onNo
                     </div>
                   </div>
                   <div className="back-foot">
-                    <span className="mono">DSH RESEARCHED · {research.updatedAt ? relativeTime(research.updatedAt) : '—'}</span>
+                    <span className="mono">
+                      DSH RESEARCHED · {latestResearch?.at ? relativeTime(latestResearch.at) : '—'}
+                    </span>
                     <span className="mono">↻ FRONT</span>
                   </div>
                   <div className="back-mark">{contact.name?.[0] || ''}</div>
@@ -205,32 +212,23 @@ export function Person({ contact, t, capabilities, onBack, onEdit, onToast, onNo
             title="RESEARCH"
             aside={
               <button className="mono bc-mini" onClick={runResearch} disabled={busy} style={{ background: 'none' }}>
-                {busy ? t('正在研究') : t('重新研究')}
+                {busy ? t('正在研究') : `+ ${t('研究一轮')}`}
               </button>
             }
           >
-            {research.summary ? (
+            {researchDocs.length ? (
               <>
-                <p>{research.summary}</p>
-                {(research.sources || []).length ? (
-                  <div className="srcs">
-                    {research.sources.map(source => (
-                      <a className="src" key={source.url} href={source.url} target="_blank" rel="noreferrer" title={source.title}>
-                        {siteOf(source.url).toUpperCase() || source.site}
-                      </a>
-                    ))}
-                  </div>
-                ) : null}
+                <ResearchList docs={researchDocs} t={t} onOpen={setResearchDoc} />
                 <div className="stamp">
-                  UPDATED {research.updatedAt ? relativeTime(research.updatedAt) : '—'} · {(research.sources || []).length} SOURCES
+                  {t('共')} {researchDocs.length} {t('份研究')} · {relativeTime(latestResearch.at)}
                 </div>
                 {researchStale ? (
-                  <div className="stamp" style={{ color: '#9a4a41' }}>资料可能已过期，建议点「重新研究」。</div>
+                  <div className="stamp" style={{ color: '#9a4a41' }}>{t('资料可能已过期，建议再研究一轮')}</div>
                 ) : null}
               </>
             ) : (
               <p className="bc-empty-research">
-                {t('还没有研究')}。点右上角 RESEARCH，让 DSH 查一轮公开信息，并把结论与来源写回这张卡。
+                {t('还没有研究')}。点右上角「研究此人 ↗」，DSH 会联网检索，并把结论、来源与日期存成一份文档。
               </p>
             )}
           </Section>
@@ -294,6 +292,8 @@ export function Person({ contact, t, capabilities, onBack, onEdit, onToast, onNo
           onContactChanged={onContactChanged}
         />
       </div>
+
+      {researchDoc ? <ResearchModal doc={researchDoc} t={t} onClose={() => setResearchDoc(null)} /> : null}
     </div>
   )
 }

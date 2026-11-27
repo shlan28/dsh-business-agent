@@ -6,7 +6,7 @@
 - 新建：一个输入框交给 DSH 建档，不用先填长表单；表单只在编辑/兜底时出现。
 - 详情：ID 卡可翻面成 DOSSIER；联系方式、下一步、研究摘要、互动时间线。
 - 会话：每个联系人绑定一个**真实的 DSH 会话**，共享 DSH 的搜索、工具权限、模型设置与历史；首次发消息才创建。
-- 研究：点 `研究此人 ↗`，DSH 去查公开信息，结果与来源经 `business_contact_research_save` 写回卡片。
+- 研究：点 `研究此人 ↗`，DSH 真的联网检索；**每轮结果存成一份研究文档**（结论 + 来源 URL + 检索日期），左栏按时间列出，点开弹窗读全文与来源。
 - Agent 工具：主会话里也能说「把沈亦舟加进人脉」「记一笔上周的电话」，或用工具查人、补下一步。
 - 数据：只写本机 `$DSH_HOME/business-cards/`；路由全部走 DSH 的连接鉴权。
 
@@ -57,7 +57,7 @@
 | `business_contact_get` | 读完整档案 |
 | `business_contact_save` | 新建或部分更新 |
 | `business_contact_note` | 追加互动 |
-| `business_contact_research_save` | 写回研究与来源 |
+| `business_contact_research_save` | 追加一份研究文档（摘要 + 来源 + 日期） |
 | `business_contact_research` | 在该联系人的会话里发起研究 |
 
 ## 数据与隐私
@@ -85,7 +85,8 @@ npm run preview                    # 用假后端渲染真实组件，生成 tes
 - 仍需刷新页面后在真机验证：`main` slot 的尺寸与滚动、`ctx.theme` 事件、`sessionController.create/prompt/cancel`、`session/event` 结构与带会话的完整 UI。
 - 没有头像上传、vCard/二维码分享、CSV 导入、每周自动刷新（计划 P5）。
 - 会话缓存只保留最近 200 条；更早的记录仍完整保存在 DSH 会话里，但面板暂不提供「加载更早」。
-- 卡片标签上限 4 个、联系人上限 500、备注 20k 字符。
+- 卡片标签上限 4 个、联系人上限 500、备注 20k 字符；研究记录每人保留最近 40 份（每份正文 8k 字、来源 8 条），超出丢最旧。
+- 研究写回必须带至少 1 条 http(s) 来源，否则 `business_contact_research_save` 拒绝写入——避免「没查就编」。
 
 ## 文件
 
