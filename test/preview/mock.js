@@ -127,11 +127,33 @@ const DEMO_CHAT = [
   { seq: 4, role: 'assistant', text: '来源：36kr.com · latepost.com · sequoia.cn', at: '2026-11-24T14:02:14+08:00' },
 ]
 
+export const ME = {
+  updatedAt: '2026-11-26T18:20:00+08:00',
+  identity: {
+    name: '石璐', nameEn: 'Lu Shi', title: '创始人', company: 'Achoverse',
+    oneLiner: '做 AI 原生的社区与开发工具', city: '上海', stage: '种子轮',
+  },
+  needs: [
+    { id: 'n_1', kind: 'funding', text: 'Q1 前融完 500 万种子轮', dueAt: '2026-03-31T00:00:00+08:00' },
+    { id: 'n_2', kind: 'hiring', text: '找一位懂社区运营的合伙人' },
+  ],
+  offers: [{ id: 'o_1', text: '帮人看 AI 产品的技术选型与产品结构' }],
+  goals: [{ id: 'g_1', text: '跑通 3 个标杆客户的付费，ARR 30 万' }],
+  preferences: { tone: '直接、少寒暄', channel: '微信优先', cadence: '重要的人 3 周一次', redLines: ['周末不发工作消息'] },
+  sources: [
+    { kind: 'form', at: '2026-11-26T18:10:00+08:00', field: 'identity', note: '手填：公司、阶段、一句话' },
+    { kind: 'chat', at: '2026-11-26T18:18:00+08:00', field: 'needs.n_1', note: '对话里说：我们在融种子轮，Q1 前要 close' },
+  ],
+}
+
 const now = () => new Date().toISOString()
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 
-export function installMockApi({ dark = false } = {}) {
+export function installMockApi({ dark = false, emptyProfile = false } = {}) {
   let contacts = JSON.parse(JSON.stringify(CONTACTS))
+  let me = emptyProfile
+    ? { updatedAt: null, identity: {}, needs: [], offers: [], goals: [], preferences: { redLines: [] }, sources: [] }
+    : JSON.parse(JSON.stringify(ME))
   let revision = 7
   const chats = new Map([['c_shen', { seq: 4, entries: DEMO_CHAT, sessionId: 's_preview_shen', running: false }]])
   const runs = new Map()
@@ -175,9 +197,28 @@ export function installMockApi({ dark = false } = {}) {
     await sleep(60)
 
     if (path.endsWith('/business-cards/state')) {
-      return send({ revision, contacts: JSON.parse(JSON.stringify(contacts)), capabilities: { chat: true } })
+      return send({ revision, contacts: JSON.parse(JSON.stringify(contacts)), me, hasMe: Boolean(me.identity?.name), capabilities: { chat: true } })
     }
     if (path.endsWith('/business-cards/op')) {
+      if (body.action === 'me') {
+        const patch = body.patch || {}
+        me = {
+          ...me,
+          identity: { ...me.identity, ...(patch.identity || {}) },
+          preferences: { ...me.preferences, ...(patch.preferences || {}) },
+          needs: patch.needs !== undefined ? patch.needs : me.needs,
+          offers: patch.offers !== undefined ? patch.offers : me.offers,
+          goals: patch.goals !== undefined ? patch.goals : me.goals,
+          updatedAt: now(),
+        }
+        revision += 1
+        return send({ me, hasMe: Boolean(me.identity?.name), state: { revision, contacts } })
+      }
+      if (body.action === 'meReset') {
+        me = { updatedAt: now(), identity: {}, needs: [], offers: [], goals: [], preferences: { redLines: [] }, sources: [] }
+        revision += 1
+        return send({ me, hasMe: false, state: { revision, contacts } })
+      }
       if (body.action === 'save') {
         const draft = body.contact || {}
         if (draft.id) {

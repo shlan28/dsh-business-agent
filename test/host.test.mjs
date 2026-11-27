@@ -100,7 +100,7 @@ test('host routes, chat wiring and agent tools work together', async () => {
     apply(ctx, {})
 
     assert.equal(routes.length, 1)
-    assert.equal(tools.length, 6)
+    assert.equal(tools.length, 8)
     assert.equal(sections.length, 1)
     const handler = routes[0].handler
     const call = async (method, path, body) => {
@@ -113,6 +113,35 @@ test('host routes, chat wiring and agent tools work together', async () => {
     assert.equal(initial.status, 200)
     assert.equal(initial.data.contacts.length, 0)
     assert.equal(initial.data.capabilities.chat, true)
+    assert.equal(initial.data.hasMe, false)
+
+    const meGet = tools.find(tool => tool.name === 'business_me_get')
+    const meSave = tools.find(tool => tool.name === 'business_me_save')
+    const emptyMe = await meGet.execute({})
+    assert.equal(emptyMe.ok, true)
+    assert.equal(emptyMe.hasMe, false)
+
+    const savedMe = await meSave.execute({
+      identity: { name: '石璐', title: '创始人', company: 'Achoverse', oneLiner: '做 AI 原生社区', stage: '种子轮' },
+      needs: [{ text: 'Q1 前融完种子轮', kind: 'funding' }],
+      offers: [{ text: '帮人看 AI 产品技术选型' }],
+      goals: [{ text: '跑通 3 个标杆客户' }],
+      preferences: { tone: '直接', redLines: ['周末不发消息'] },
+      source: { kind: 'chat', note: '用户说：我们在融种子轮' },
+    })
+    assert.equal(savedMe.ok, true)
+    assert.equal(savedMe.hasMe, true)
+    assert.equal(savedMe.me.needs[0].kind, 'funding')
+    assert.equal(savedMe.me.sources[0].note, '用户说：我们在融种子轮')
+
+    const partialMe = await meSave.execute({ preferences: { channel: '微信优先' } })
+    assert.equal(partialMe.me.identity.name, '石璐', '部分更新不丢其他字段')
+    assert.equal(partialMe.me.preferences.tone, '直接')
+    assert.equal(partialMe.me.preferences.channel, '微信优先')
+
+    const meState = await call('GET', '/business-cards/state')
+    assert.equal(meState.data.hasMe, true)
+    assert.equal(meState.data.me.goals.length, 1)
 
     const saved = await call('POST', '/business-cards/op', {
       action: 'save',
@@ -142,6 +171,7 @@ test('host routes, chat wiring and agent tools work together', async () => {
     assert.equal(listed.count, 1)
 
     const sent = await call('POST', '/business-cards/chat/send', { id: contactId, text: '她最近在投什么？' })
+    assert.match(prompts[0].content[0].text, /【我】石璐/, '提示词带上我的档案')
     assert.equal(sent.data.ok, true)
     assert.equal(sent.data.sessionId, 'sess-1')
     assert.equal(created, 1)

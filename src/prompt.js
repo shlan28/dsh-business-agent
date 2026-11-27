@@ -1,4 +1,5 @@
 // 投给模型的档案上下文与研究指令。控制长度，只放会改变回答的信息。
+// 「我」的档案（me.json）压缩成 ≤ 500 字，拼在对方档案前面。
 const TYPE_LABELS = {
   investor: '投资人',
   partner: '合作伙伴',
@@ -30,6 +31,64 @@ const date = value => {
     month: '2-digit',
     day: '2-digit',
   }).format(new Date(stamp))
+}
+
+export const ME_PROMPT_LIMIT = 500
+
+const NEED_LABELS = {
+  funding: '资金',
+  clients: '客户',
+  partners: '伙伴',
+  hiring: '招人',
+  info: '信息',
+  other: '其他',
+}
+
+const trimTo = (value, max) => {
+  const line = String(value || '').trim()
+  return line.length > max ? `${line.slice(0, max)}…` : line
+}
+
+const numbered = (items, render, max = 2) =>
+  items.slice(0, max).map((item, index) => `${'①②③④⑤'[index] || `${index + 1}.`} ${render(item)}`).join(' · ')
+
+/** 「我」的档案 → 一段能塞进提示词的上下文；没有内容时返回空串。 */
+export function meDossier(me) {
+  if (!me || !(me.identity?.name || me.identity?.oneLiner || me.needs?.length || me.goals?.length || me.offers?.length)) {
+    return ''
+  }
+  const who = [
+    me.identity.name,
+    me.identity.title,
+    me.identity.company,
+    me.identity.stage,
+    me.identity.city,
+  ].filter(Boolean).join(' · ')
+  const build = (needsMax, goalsMax, offersMax) => {
+    const lines = [`【我】${who || '（未填姓名）'}`]
+    if (me.identity.oneLiner) lines.push(`我在做：${trimTo(me.identity.oneLiner, 120)}`)
+    if (me.goals?.length) {
+      lines.push(`今年目标：${numbered(me.goals, item => trimTo(item.text, 90), goalsMax)}`)
+    }
+    if (me.needs?.length) {
+      lines.push(`现在最需要：${numbered(me.needs, item => `${NEED_LABELS[item.kind] || '其他'}：${trimTo(item.text, 80)}`, needsMax)}`)
+    }
+    if (me.offers?.length) {
+      lines.push(`我能给别人的：${numbered(me.offers, item => trimTo(item.text, 80), offersMax)}`)
+    }
+    const comms = [
+      me.preferences?.tone && `风格 ${me.preferences.tone}`,
+      me.preferences?.channel && `渠道 ${me.preferences.channel}`,
+      me.preferences?.cadence && `节奏 ${me.preferences.cadence}`,
+    ].filter(Boolean)
+    if (comms.length) lines.push(`沟通偏好：${comms.join(' · ')}`)
+    if (me.preferences?.redLines?.length) lines.push(`忌讳：${me.preferences.redLines.slice(0, 3).join(' / ')}`)
+    return lines.join('\n')
+  }
+  let block = build(3, 3, 3)
+  if (block.length > ME_PROMPT_LIMIT) block = build(2, 2, 1)
+  if (block.length > ME_PROMPT_LIMIT) block = block.slice(0, ME_PROMPT_LIMIT - 1) + '…'
+  return block
 }
 
 export function dossier(contact) {
@@ -65,8 +124,15 @@ const RULES = [
   '如果用户只是聊天或让你起草消息，直接回答；如果完成了检索，用 business_contact_research_save 往这张卡追加一条研究记录（每条都要带来源 URL 与检索日期，不要覆盖旧记录）。',
 ].join('')
 
-/** 普通对话 / 研究请求的完整提示词。 */
-export function chatPrompt(contact, text, kind = 'chat') {
+/** 普通对话 / 研究请求的完整提示词。me 是「我」的档案，用来让建议落在我的处境上。 */
+export function chatPrompt(contact, text, kind = 'chat', me = null) {
+  const mine = meDossier(me)
+  const mineFocus = mine && kind === 'research'
+    ? '\n检索时优先找「和我的目标 / 需求相关」的信息：对方的兴趣点、最近动作、能不能对上我的需要；无关的八卦不要写。'
+    : ''
+  const matching = mine
+    ? '\n给建议时要能对上我的处境：我能给对方什么价值、对方能帮我哪条需求、下一步具体动作。带我档案里没有的信息时先问我，不要替我编。'
+    : '\n目前还没有我的档案；判断「值不值得见 / 该聊什么」时说明信息不足，并建议我先补全自己的情况。'
   const research = kind === 'research'
     ? '\n这次是研究请求，必须真的联网检索（搜索网页 / 抓取页面），不能只靠已有记忆：'
       + '\n1) 至少找到 3 条公开来源，逐条记下 URL 与站点；'
@@ -74,7 +140,7 @@ export function chatPrompt(contact, text, kind = 'chat') {
       + '\n3) 最后调用 business_contact_research_save 追加一条新记录：summary 写全文结论，sources 传 URL 列表，title 用一句话概括这次查到的重点；'
       + '\n4) 如果一条可靠来源都搜不到，就在对话里说明搜不到，不要调用保存工具、不要编造来源。'
     : ''
-  return `${dossier(contact)}\n\n${RULES}${research}\n\n用户：${text}`
+  return `${mine ? `${mine}\n\n` : ''}${dossier(contact)}\n\n${RULES}${mineFocus}${research}${matching}\n\n用户：${text}`
 }
 
 /** 研究请求的默认关注点。 */

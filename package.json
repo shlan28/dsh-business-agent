@@ -1,6 +1,6 @@
 {
   "name": "dsh-business-cards",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "DeepSeek Harness 插件：人脉助手——私人商业人脉名片墙，左侧档案 + 右侧 DSH 会话。",
   "repository": {
     "type": "git",

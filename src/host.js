@@ -1,7 +1,7 @@
 // 人脉名片墙 Host 半片：本地档案读写、DSH 会话接线、研究写回、agent 工具。
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { HttpError, LIMITS, Store, publicContact } from './store.js'
+import { HttpError, LIMITS, Store, hasMe, publicContact } from './store.js'
 import { chatPrompt, composePrompt, researchInstruction } from './prompt.js'
 
 export const name = 'business-cards'
@@ -131,7 +131,7 @@ export function apply(ctx, config = {}) {
     const display = kind === 'research' ? `研究此人：${text}` : text
     await store.appendChat(contact.id, { role: 'user', text: display, at: Date.now() })
     const requestId = `bc-${contact.id}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
-    const prompt = chatPrompt(contact, kind === 'research' ? researchInstruction(text) : text, kind)
+    const prompt = chatPrompt(contact, kind === 'research' ? researchInstruction(text) : text, kind, store.publicMe())
     void (async () => {
       try {
         await ctrl.prompt(
@@ -295,6 +295,14 @@ export function apply(ctx, config = {}) {
         const contact = await store.appendResearch(body?.id, body)
         return { ok: true, contact, state: store.snapshot() }
       }
+      case 'me': {
+        const me = await store.saveMe(body?.patch ?? body)
+        return { ok: true, me, hasMe: hasMe(store.me), state: store.snapshot() }
+      }
+      case 'meReset': {
+        const me = await store.resetMe()
+        return { ok: true, me, hasMe: false, state: store.snapshot() }
+      }
       default:
         throw new HttpError(400, `未知操作：${action || '（空）'}`)
     }
@@ -397,6 +405,8 @@ export function apply(ctx, config = {}) {
               json(res, 200, {
                 ok: true,
                 ...store.snapshot(),
+                me: store.publicMe(),
+                hasMe: hasMe(store.me),
                 capabilities: {
                   chat: Boolean(sessionController()),
                 },
@@ -470,6 +480,89 @@ export function apply(ctx, config = {}) {
     })
 
     const toolList = [
+      {
+        name: 'business_me_get',
+        description:
+          "Read the user's own profile (who they are, goals, current needs, what they can offer, communication preferences). Read this BEFORE giving advice about a contact, choosing who to follow up with, or preparing a meeting.",
+        parameters: { type: 'object', additionalProperties: false, properties: {} },
+      },
+      {
+        name: 'business_me_save',
+        description:
+          'Save facts about the USER themselves (not a contact): identity, needs, offers, goals, preferences. Partial update: send only the fields you are changing; needs/offers/goals replace that whole list when present. Only save what the user actually said — never infer. Mention where it came from in source.note.',
+        parameters: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            identity: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                name: { type: 'string' },
+                nameEn: { type: 'string' },
+                title: { type: 'string' },
+                company: { type: 'string' },
+                oneLiner: { type: 'string', description: 'One sentence: what they are building.' },
+                city: { type: 'string' },
+                stage: { type: 'string', description: 'Company stage, e.g. 种子轮 / A 轮.' },
+              },
+            },
+            needs: {
+              type: 'array',
+              description: 'What the user needs right now; replaces the existing list.',
+              items: {
+                type: 'object',
+                additionalProperties: false,
+                properties: {
+                  text: { type: 'string' },
+                  kind: { type: 'string', enum: ['funding', 'clients', 'partners', 'hiring', 'info', 'other'] },
+                  dueAt: { type: 'string', description: 'ISO date, optional.' },
+                },
+                required: ['text'],
+              },
+            },
+            offers: {
+              type: 'array',
+              description: 'What the user can offer others; replaces the existing list.',
+              items: {
+                type: 'object',
+                additionalProperties: false,
+                properties: { text: { type: 'string' } },
+                required: ['text'],
+              },
+            },
+            goals: {
+              type: 'array',
+              description: 'Goals for this year / quarter; replaces the existing list.',
+              items: {
+                type: 'object',
+                additionalProperties: false,
+                properties: { text: { type: 'string' } },
+                required: ['text'],
+              },
+            },
+            preferences: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                tone: { type: 'string' },
+                channel: { type: 'string' },
+                cadence: { type: 'string' },
+                redLines: { type: 'array', items: { type: 'string' } },
+              },
+            },
+            source: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                kind: { type: 'string', description: 'chat / form / import' },
+                field: { type: 'string' },
+                note: { type: 'string', description: 'Quote or context showing where this came from.' },
+              },
+            },
+          },
+        },
+      },
       {
         name: 'business_contact_list',
         description:
@@ -601,6 +694,19 @@ export function apply(ctx, config = {}) {
               try {
                 await ready
                 switch (definition.name) {
+                  case 'business_me_get':
+                    return { ok: true, me: store.publicMe(), hasMe: hasMe(store.me) }
+                  case 'business_me_save': {
+                    const me = await store.saveMe({
+                      identity: args?.identity,
+                      needs: args?.needs,
+                      offers: args?.offers,
+                      goals: args?.goals,
+                      preferences: args?.preferences,
+                      source: args?.source,
+                    })
+                    return { ok: true, me, hasMe: hasMe(me) }
+                  }
                   case 'business_contact_list': {
                     const query = typeof args?.query === 'string' ? args.query.trim().toLowerCase() : ''
                     const contacts = store.list().filter(contact => {
@@ -695,7 +801,7 @@ export function apply(ctx, config = {}) {
         ctx.get('systemPrompt')?.section({
           name: 'business-cards',
           order: 58,
-          text: 'The user keeps a private business-contact wall (investors, partners, clients, advisors) in the sidebar. Use the business_contact_* tools when they mention a specific person or company, ask you to add someone, record an interaction, prepare for a meeting, or look someone up. Never invent contact details. Research means real web search: append each round as its own dated record with business_contact_research_save (summary + HTTP(S) sources), never overwrite older records.',
+          text: 'The user keeps a private business-contact wall (investors, partners, clients, advisors) in the sidebar. Use the business_contact_* tools when they mention a specific person or company, ask you to add someone, record an interaction, prepare for a meeting, or look someone up. Never invent contact details. Research means real web search: append each round as its own dated record with business_contact_research_save (summary + HTTP(S) sources), never overwrite older records. The user\'s own profile lives in business_me_get/business_me_save: read it before suggesting who to contact or what to say; when advice depends on their situation but the profile is empty, ask 1-2 questions and save the answers with business_me_save (only what they actually said).',
         }),
       'business-cards: prompt section',
     )

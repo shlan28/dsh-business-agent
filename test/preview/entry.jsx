@@ -6,7 +6,7 @@ import { installMockApi } from './mock.js'
 
 const params = new URLSearchParams(location.search)
 const dark = params.get('theme') === 'dark'
-installMockApi({ dark })
+installMockApi({ dark, emptyProfile: params.has('noprofile') })
 
 const openId = params.get('open') || ''
 try {
@@ -48,6 +48,18 @@ setTimeout(() => {
   if (params.has('edit')) {
     const button = [...document.querySelectorAll('.dactions button')][0]
     button?.click()
+  }
+  if (params.has('me')) {
+    const button = [...document.querySelectorAll('button')].find(node => node.textContent?.includes('我的名片'))
+    button?.click()
+  }
+  if (params.has('mecard')) {
+    const button = [...document.querySelectorAll('button')].find(node => node.textContent?.includes('我的名片'))
+    button?.click()
+    setTimeout(() => {
+      const edit = [...document.querySelectorAll('.dactions button')][0]
+      edit?.click()
+    }, 500)
   }
   if (params.has('research')) {
     const buttons = [...document.querySelectorAll('.dactions button')]

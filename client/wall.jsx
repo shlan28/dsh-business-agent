@@ -10,7 +10,7 @@ function countsOf(contacts) {
   return counts
 }
 
-export function Wall({ contacts, loaded, error, t, onOpen, onNew, onRetry }) {
+export function Wall({ contacts, loaded, error, t, onOpen, onNew, onRetry, onMe }) {
   const [filter, setFilter] = React.useState('all')
   const [query, setQuery] = React.useState('')
   const counts = countsOf(contacts)
@@ -40,6 +40,7 @@ export function Wall({ contacts, loaded, error, t, onOpen, onNew, onRetry }) {
           <span className="brand-name">Achoverse</span>
           <span className="brand-sep">/</span>
           <span className="brand-sub">Business Agent</span>
+          <button className="mine" onClick={onMe}>{t('我的名片')}</button>
         </div>
 
         <header className="masthead">

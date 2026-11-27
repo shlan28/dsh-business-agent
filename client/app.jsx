@@ -4,8 +4,10 @@ import { Wall } from './wall.jsx'
 import { Person } from './person.jsx'
 import { Editor } from './editor.jsx'
 import { Composer } from './compose.jsx'
+import { MeEditor, MeGuide, MyCard } from './me.jsx'
 
 const STORAGE_KEY = 'dsh:business-cards:open'
+const ME_SKIP_KEY = 'dsh:business-cards:me-skip'
 
 function readScheme(ctx) {
   try {
@@ -34,6 +36,8 @@ export function App({ ctx, t, css }) {
     loaded: false,
     error: '',
     contacts: [],
+    me: null,
+    hasMe: false,
     revision: 0,
     capabilities: { chat: false },
   })
@@ -46,6 +50,15 @@ export function App({ ctx, t, css }) {
   })
   const [editor, setEditor] = React.useState(null)
   const [composer, setComposer] = React.useState(false)
+  const [meOpen, setMeOpen] = React.useState(false)
+  const [meEditor, setMeEditor] = React.useState(false)
+  const [guideDismissed, setGuideDismissed] = React.useState(() => {
+    try {
+      return localStorage.getItem(ME_SKIP_KEY) === '1'
+    } catch {
+      return false
+    }
+  })
   const [toast, setToast] = React.useState(null)
   const [scheme, setScheme] = React.useState(() => readScheme(ctx))
   const toastTimer = React.useRef(null)
@@ -65,6 +78,8 @@ export function App({ ctx, t, css }) {
         loaded: true,
         error: '',
         contacts: Array.isArray(data.contacts) ? data.contacts : [],
+        me: data.me || null,
+        hasMe: Boolean(data.hasMe),
         revision: data.revision || 0,
         capabilities: data.capabilities || { chat: false },
       })
@@ -129,6 +144,44 @@ export function App({ ctx, t, css }) {
     }
   }, [])
 
+  const saveMe = async patch => {
+    const data = await api('/op', { method: 'POST', body: { action: 'me', patch } })
+    if (data.state) {
+      setState(current => ({
+        ...current,
+        contacts: data.state.contacts,
+        revision: data.state.revision,
+        me: data.me,
+        hasMe: Boolean(data.hasMe),
+      }))
+    }
+    notify(t('已保存'))
+    return data
+  }
+
+  const clearMe = async () => {
+    const data = await api('/op', { method: 'POST', body: { action: 'meReset' } })
+    if (data.state) {
+      setState(current => ({
+        ...current,
+        contacts: data.state.contacts,
+        revision: data.state.revision,
+        me: data.me,
+        hasMe: false,
+      }))
+    }
+    notify(t('已清空'))
+  }
+
+  const dismissGuide = () => {
+    setGuideDismissed(true)
+    try {
+      localStorage.setItem(ME_SKIP_KEY, '1')
+    } catch {
+      // 隐私模式下记不住，下次还会问。
+    }
+  }
+
   const saveContact = async payload => {
     const data = await api('/op', { method: 'POST', body: { action: 'save', contact: payload } })
     if (data.state) {
@@ -187,6 +240,8 @@ export function App({ ctx, t, css }) {
   }
 
   const selected = openId ? state.contacts.find(contact => contact.id === openId) : null
+  const me = state.me || { identity: {}, needs: [], offers: [], goals: [], preferences: { redLines: [] }, sources: [] }
+  const showGuide = state.loaded && !state.hasMe && !guideDismissed && !meOpen && !meEditor
   const editing = editor ? (editor === 'new' ? null : state.contacts.find(contact => contact.id === editor.id) || null) : undefined
 
   return (
@@ -196,7 +251,15 @@ export function App({ ctx, t, css }) {
       <div className="edge l" />
       <div className="edge r" />
 
-      {selected ? (
+      {meOpen ? (
+        <MyCard
+          me={me}
+          t={t}
+          onBack={() => setMeOpen(false)}
+          onEdit={() => setMeEditor(true)}
+          onStart={() => setMeEditor(true)}
+        />
+      ) : selected ? (
         <Person
           contact={selected}
           t={t}
@@ -217,6 +280,7 @@ export function App({ ctx, t, css }) {
           onOpen={open}
           onNew={() => (state.capabilities.chat ? setComposer(true) : setEditor('new'))}
           onRetry={refresh}
+          onMe={() => setMeOpen(true)}
         />
       )}
 
@@ -229,6 +293,27 @@ export function App({ ctx, t, css }) {
             setComposer(false)
             setEditor('new')
           }}
+        />
+      ) : null}
+
+      {meEditor ? (
+        <MeEditor
+          me={me}
+          t={t}
+          onSave={saveMe}
+          onClear={clearMe}
+          onClose={() => setMeEditor(false)}
+        />
+      ) : null}
+
+      {showGuide ? (
+        <MeGuide
+          t={t}
+          onSave={async patch => {
+            await saveMe(patch)
+            setGuideDismissed(true)
+          }}
+          onSkip={dismissGuide}
         />
       ) : null}
 

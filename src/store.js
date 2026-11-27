@@ -1,4 +1,4 @@
-// 人脉档案的本地存储：contacts.json + 每人一份 chats/<id>.json。
+// 人脉档案的本地存储：contacts.json + 每人一份 chats/<id>.json + 自己的 me.json。
 // 只写 $DSH_HOME/business-cards/，原子写 + 最近 3 份备份。
 import { promises as fs } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -8,6 +8,7 @@ export const TYPES = ['investor', 'partner', 'client', 'advisor', 'other']
 export const ACCENTS = ['orchid', 'peach', 'butter', 'rose', 'sage', 'sky', 'blue']
 export const NOTE_KINDS = ['wechat', 'meeting', 'call', 'email', 'note']
 export const CHAT_ROLES = ['user', 'assistant', 'tool', 'system', 'error']
+export const NEED_KINDS = ['funding', 'clients', 'partners', 'hiring', 'info', 'other']
 
 export const LIMITS = {
   contacts: 500,
@@ -23,6 +24,17 @@ export const LIMITS = {
   chatText: 8_000,
 }
 
+export const ME_LIMITS = {
+  name: 60,
+  oneLiner: 200,
+  field: 160,
+  item: 240,
+  items: 12,
+  redLines: 8,
+  sourceNote: 300,
+  sources: 50,
+}
+
 export class HttpError extends Error {
   constructor(status, message) {
     super(message)
@@ -34,6 +46,7 @@ const TYPE_SET = new Set(TYPES)
 const ACCENT_SET = new Set(ACCENTS)
 const NOTE_SET = new Set(NOTE_KINDS)
 const CHAT_ROLE_SET = new Set(CHAT_ROLES)
+const NEED_SET = new Set(NEED_KINDS)
 
 const text = (value, max = 500) => (typeof value === 'string' ? value.trim().slice(0, max) : '')
 const iso = value => {
@@ -134,6 +147,107 @@ function normalizeTimeline(value) {
   return out.slice(0, LIMITS.timeline)
 }
 
+/** 「我」的档案：只收能改变建议的字段，缺失一律留空。 */
+function normalizeMeItem(value, prefix, kind = null) {
+  const textValue = text(typeof value === 'string' ? value : value?.text, ME_LIMITS.item)
+  if (!textValue) return null
+  const item = {
+    id: text(value?.id, 80) || `${prefix}_${randomUUID()}`,
+    text: textValue,
+  }
+  if (kind) item.kind = NEED_SET.has(value?.kind) ? value.kind : 'other'
+  const dueAt = iso(value?.dueAt)
+  if (dueAt) item.dueAt = dueAt
+  return item
+}
+
+function normalizeMeList(value, prefix, kind = false) {
+  if (!Array.isArray(value)) return []
+  const out = []
+  for (const entry of value) {
+    const item = normalizeMeItem(entry, prefix, kind)
+    if (item) out.push(item)
+    if (out.length >= ME_LIMITS.items) break
+  }
+  return out
+}
+
+function normalizeRedLines(value) {
+  const raw = Array.isArray(value) ? value : typeof value === 'string' ? value.split(/\n/) : []
+  const out = []
+  for (const entry of raw) {
+    const line = text(entry, 80)
+    if (line && !out.includes(line)) out.push(line)
+    if (out.length >= ME_LIMITS.redLines) break
+  }
+  return out
+}
+
+const emptyMe = () => ({
+  updatedAt: null,
+  identity: { name: '', nameEn: '', title: '', company: '', oneLiner: '', city: '', stage: '' },
+  needs: [],
+  offers: [],
+  goals: [],
+  preferences: { tone: '', channel: '', cadence: '', redLines: [] },
+  sources: [],
+})
+
+/** 规范化「我」的档案；任何坏字段都退化成空，不抛错。 */
+export function normalizeMe(raw) {
+  const source = raw && typeof raw === 'object' ? raw : {}
+  const identity = source.identity && typeof source.identity === 'object' ? source.identity : {}
+  const preferences = source.preferences && typeof source.preferences === 'object' ? source.preferences : {}
+  const sources = []
+  if (Array.isArray(source.sources)) {
+    for (const entry of source.sources) {
+      const note = text(entry?.note, ME_LIMITS.sourceNote)
+      if (!note) continue
+      sources.push({
+        kind: text(entry?.kind, 20) || 'form',
+        at: iso(entry?.at) || nowIso(),
+        field: text(entry?.field, 60),
+        note,
+      })
+      if (sources.length >= ME_LIMITS.sources) break
+    }
+  }
+  return {
+    updatedAt: iso(source.updatedAt),
+    identity: {
+      name: text(identity.name, ME_LIMITS.name),
+      nameEn: text(identity.nameEn, ME_LIMITS.name),
+      title: text(identity.title, ME_LIMITS.field),
+      company: text(identity.company, ME_LIMITS.field),
+      oneLiner: text(identity.oneLiner, ME_LIMITS.oneLiner),
+      city: text(identity.city, ME_LIMITS.field),
+      stage: text(identity.stage, ME_LIMITS.field),
+    },
+    needs: normalizeMeList(source.needs, 'n', true),
+    offers: normalizeMeList(source.offers, 'o'),
+    goals: normalizeMeList(source.goals, 'g'),
+    preferences: {
+      tone: text(preferences.tone, ME_LIMITS.field),
+      channel: text(preferences.channel, ME_LIMITS.field),
+      cadence: text(preferences.cadence, ME_LIMITS.field),
+      redLines: normalizeRedLines(preferences.redLines),
+    },
+    sources,
+  }
+}
+
+/** 有没有可用的「我」：至少填了姓名或一句话。 */
+export function hasMe(me) {
+  if (!me) return false
+  return Boolean(
+    me.identity?.name ||
+      me.identity?.oneLiner ||
+      me.needs?.length ||
+      me.goals?.length ||
+      me.offers?.length,
+  )
+}
+
 /** 把外部输入规整成可落盘的档案；缺姓名的新联系人会抛 400。 */
 export function normalizeContact(raw, previous = null) {
   const source = raw && typeof raw === 'object' ? raw : {}
@@ -226,9 +340,11 @@ export class Store {
   constructor(dir) {
     this.dir = dir
     this.file = join(dir, 'contacts.json')
+    this.meFile = join(dir, 'me.json')
     this.chatDir = join(dir, 'chats')
     this.backupDir = join(dir, 'backups')
     this.contacts = []
+    this.me = emptyMe()
     this.revision = 0
     this.chatCache = new Map()
     this.queue = Promise.resolve()
@@ -275,7 +391,87 @@ export class Store {
       }
       this.contacts = []
     }
+    await this.loadMe()
     return this
+  }
+
+  /** 读「我」的档案；没有文件就是空档案，坏文件先备份再降级。 */
+  async loadMe() {
+    try {
+      this.me = normalizeMe(JSON.parse(await fs.readFile(this.meFile, 'utf8')))
+    } catch (error) {
+      if (error?.code !== 'ENOENT') {
+        try {
+          await fs.copyFile(this.meFile, join(this.backupDir, `broken-me-${Date.now()}.json`))
+        } catch {
+          // 备份失败也继续，别挡住面板。
+        }
+      }
+      this.me = emptyMe()
+    }
+    return this.me
+  }
+
+  async writeMe() {
+    const tmp = `${this.meFile}.${process.pid}.${Date.now()}.tmp`
+    await fs.mkdir(dirname(this.meFile), { recursive: true })
+    await fs.writeFile(tmp, JSON.stringify(this.me, null, 2))
+    try {
+      await fs.copyFile(this.meFile, join(this.backupDir, `me-${Date.now()}.json`))
+      const backups = (await fs.readdir(this.backupDir)).filter(name => name.startsWith('me-')).sort()
+      for (const stale of backups.slice(0, Math.max(0, backups.length - 3))) {
+        await fs.rm(join(this.backupDir, stale), { force: true })
+      }
+    } catch {
+      // 第一次写入没有旧文件可备份。
+    }
+    await fs.rename(tmp, this.meFile)
+  }
+
+  publicMe() {
+    return clone(this.me)
+  }
+
+  /** 部分更新：identity / preferences 合并，needs / offers / goals 整体替换。 */
+  async saveMe(input = {}) {
+    const source = input && typeof input === 'object' ? input : {}
+    const current = this.me || emptyMe()
+    const merge = (base, patch) => ({ ...base, ...(patch && typeof patch === 'object' ? patch : {}) })
+    const given = key => Object.prototype.hasOwnProperty.call(source, key) && source[key] !== undefined
+    const next = normalizeMe({
+      ...current,
+      identity: merge(current.identity, source.identity),
+      preferences: merge(current.preferences, source.preferences),
+      needs: given('needs') ? source.needs : current.needs,
+      offers: given('offers') ? source.offers : current.offers,
+      goals: given('goals') ? source.goals : current.goals,
+      sources: current.sources,
+    })
+    const note = text(source.source?.note, ME_LIMITS.sourceNote)
+    if (note) {
+      next.sources.unshift({
+        kind: text(source.source?.kind, 20) || 'form',
+        at: nowIso(),
+        field: text(source.source?.field, 60),
+        note,
+      })
+      next.sources = next.sources.slice(0, ME_LIMITS.sources)
+    }
+    next.updatedAt = nowIso()
+    this.me = next
+    this.revision += 1
+    await this.enqueue(() => this.writeMe())
+    return this.publicMe()
+  }
+
+  /** 清空「我」的档案（设置页的「清空」）。 */
+  async resetMe() {
+    const next = emptyMe()
+    next.updatedAt = nowIso()
+    this.me = next
+    this.revision += 1
+    await this.enqueue(() => this.writeMe())
+    return this.publicMe()
   }
 
   list() {

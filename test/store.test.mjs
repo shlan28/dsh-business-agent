@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Store } from '../src/store.js'
@@ -161,4 +161,51 @@ test('remove deletes contact and chat file', async () => {
     assert.equal(store.list().length, 0)
     await assert.rejects(() => readFile(join(dir, 'chats', `${created.id}.json`), 'utf8'))
   })
+})
+
+test('my profile: save, partial update, reload and reset', async () => {
+  await withStore(async (store, dir) => {
+    assert.equal(store.publicMe().identity.name, '')
+    const saved = await store.saveMe({
+      identity: { name: '石璐', oneLiner: '做 AI 原生社区', stage: '种子轮' },
+      needs: [{ text: 'Q1 融 500 万', kind: 'funding' }],
+      offers: [{ text: '帮人看技术选型' }],
+      goals: [{ text: '跑通 3 个标杆客户' }],
+      preferences: { tone: '直接', redLines: ['周末不发消息'] },
+      source: { kind: 'chat', field: 'needs', note: '用户说：我们在融种子轮' },
+    })
+    assert.equal(saved.identity.name, '石璐')
+    assert.equal(saved.needs[0].kind, 'funding')
+    assert.equal(saved.sources[0].note, '用户说：我们在融种子轮')
+    assert.ok(saved.updatedAt)
+
+    const partial = await store.saveMe({ preferences: { channel: '微信优先' }, needs: undefined })
+    assert.equal(partial.identity.name, '石璐', '部分更新不丢身份')
+    assert.equal(partial.needs.length, 1, 'undefined 的列表不清空')
+    assert.equal(partial.preferences.tone, '直接')
+    assert.equal(partial.preferences.channel, '微信优先')
+
+    const reloaded = await new Store(dir).load()
+    assert.equal(reloaded.publicMe().identity.name, '石璐')
+    assert.equal(reloaded.publicMe().goals.length, 1)
+
+    await store.resetMe()
+    assert.equal(store.publicMe().identity.name, '')
+    assert.equal(store.publicMe().needs.length, 0)
+    const afterReset = await new Store(dir).load()
+    assert.equal(afterReset.publicMe().identity.name, '')
+  })
+})
+
+test('corrupt me.json is backed up and degrades to an empty profile', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'bc-store-'))
+  try {
+    await writeFile(join(dir, 'me.json'), '{oops')
+    const store = await new Store(dir).load()
+    assert.equal(store.publicMe().identity.name, '')
+    const backups = await readdir(join(dir, 'backups'))
+    assert.ok(backups.some(name => name.startsWith('broken-me-')), '坏文件先备份')
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
 })
