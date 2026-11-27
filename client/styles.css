@@ -524,3 +524,17 @@
 /* 错误条：人话主句 + 原始信息折叠小字 */
 .bc-root .bc-err-detail { margin-top: 5px; font-size: 8px; line-height: 1.6; letter-spacing: .02em;
   color: color-mix(in srgb, #9a4a41 65%, transparent); word-break: break-word; }
+
+/* 区块头的小操作：做成有边界、有图标、有 hover 的胶囊按钮，别像纯文字 */
+.bc-root .bc-pill { display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px;
+  border: 1px solid var(--wire-strong); border-radius: 999px; background: var(--card);
+  font-family: var(--mono); font-size: 8px; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--ink-2); line-height: 1; transition: color .16s, border-color .16s, transform .16s, box-shadow .16s; }
+.bc-root .bc-pill svg { color: var(--lav); flex: none; }
+.bc-root .bc-pill:hover { color: var(--ink); border-color: var(--ink); transform: translateY(-1px);
+  box-shadow: 0 8px 16px -12px rgba(0,0,0,.4); }
+.bc-root .bc-pill:active { transform: translateY(0); box-shadow: none; }
+.bc-root .bc-pill:disabled { opacity: .55; cursor: default; transform: none; box-shadow: none; }
+.bc-root .bc-empty-research .bc-pill { margin-top: 10px; }
+.bc-root .bc-flip-icon { display: inline-flex; }
+.bc-root .bc-flip-icon svg { transform: rotate(180deg); }

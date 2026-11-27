@@ -66,6 +66,8 @@ const EN = {
   备注: 'Notes',
   收起: 'Close',
   正在研究: 'Researching',
+  '正在研究…': 'Researching…',
+  开始研究: 'Start research',
   其他: 'Other',
   投资人: 'Investor',
   合作伙伴: 'Partner',

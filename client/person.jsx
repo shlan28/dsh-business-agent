@@ -1,5 +1,5 @@
 import React from 'react'
-import { ChevronLeftIcon, CopyIcon, RefreshIcon } from './icons.jsx'
+import { ChevronDownIcon, ChevronLeftIcon, CopyIcon, PlusIcon, RefreshIcon } from './icons.jsx'
 import { Chat } from './chat.jsx'
 import { ResearchList, ResearchModal } from './research.jsx'
 import { Plate, TYPE_LABELS, dateLabel, numberLabel, relativeTime, timeLabel } from './ui.jsx'
@@ -211,8 +211,9 @@ export function Person({ contact, t, capabilities, onBack, onEdit, onToast, onNo
           <Section
             title="RESEARCH"
             aside={
-              <button className="mono bc-mini" onClick={runResearch} disabled={busy} style={{ background: 'none' }}>
-                {busy ? t('正在研究') : `+ ${t('研究一轮')}`}
+              <button className="bc-pill" onClick={runResearch} disabled={busy}>
+                <RefreshIcon size={10} />
+                {busy ? t('正在研究…') : t('研究一轮')}
               </button>
             }
           >
@@ -227,17 +228,22 @@ export function Person({ contact, t, capabilities, onBack, onEdit, onToast, onNo
                 ) : null}
               </>
             ) : (
-              <p className="bc-empty-research">
-                {t('还没有研究')}。点右上角「研究此人 ↗」，DSH 会联网检索，并把结论、来源与日期存成一份文档。
-              </p>
+              <div className="bc-empty-research">
+                <p>{t('还没有研究')}。让 DSH 联网检索一轮，结论、来源与日期会存成一份文档。</p>
+                <button className="bc-pill" onClick={runResearch} disabled={busy}>
+                  <RefreshIcon size={10} />
+                  {busy ? t('正在研究…') : t('开始研究')}
+                </button>
+              </div>
             )}
           </Section>
 
           <Section
             title="TIMELINE"
             aside={
-              <button className="mono bc-mini" onClick={() => setNoteOpen(value => !value)}>
-                {noteOpen ? t('收起') : `+ ${t('记一条')}`}
+              <button className="bc-pill" onClick={() => setNoteOpen(value => !value)} aria-expanded={noteOpen}>
+                {noteOpen ? <span className="bc-flip-icon"><ChevronDownIcon size={10} /></span> : <PlusIcon size={10} />}
+                {noteOpen ? t('收起') : t('记一条')}
               </button>
             }
           >
