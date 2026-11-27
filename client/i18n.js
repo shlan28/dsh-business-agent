@@ -1,5 +1,5 @@
 // 界面文案：中文作为 key 写在组件里，英文走 locale 映射；这样中文默认即正确，又能随 DSH 语言切换。
-export const NS = 'business-cards'
+export const NS = 'business-agent'
 
 const EN = {
   人脉助手: 'People assistant',

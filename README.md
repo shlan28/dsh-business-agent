@@ -1,4 +1,4 @@
-# 人脉助手（dsh-business-cards）
+# 人脉助手（dsh-business-agent）
 
 左侧边栏的**人脉助手**：私人商业人脉名片墙。一个联系人一张名片；点开是「左边档案 / 右边 DSH 会话」。
 
@@ -16,7 +16,7 @@
 
 ## 安装
 
-已发布到 npm：**`dsh-business-cards`**（面板里填包名即可）。本地开发时按目录安装：
+已发布到 npm：**`dsh-business-agent`**（面板里填包名即可）。本地开发时按目录安装：
 
 1. 左侧栏打开「插件」→「添加插件」→「安装第三方插件」。
 2. 包名或地址填本目录的绝对路径：
@@ -30,7 +30,7 @@
 
 更新：本地目录改完重启 DSH 即可；停用、卸载、回滚走插件面板（卸载后按上面四步重装）。
 
-> 2026-11-27 已用 `plugin_manager` 重新装到本机 `desktop` profile（`application: applied`，bundle `dsh-business-cards@0.1.0` 已启用，link 指向本目录），Host 工具已生效。侧栏若还没出现「人脉助手」，**刷新页面（Cmd+R）**让浏览器加载客户端模块。
+> 2026-11-27 已用 `plugin_manager` 重新装到本机 `desktop` profile（`application: applied`，bundle `dsh-business-agent@0.1.0` 已启用，link 指向本目录），Host 工具已生效。侧栏若还没出现「人脉助手」，**刷新页面（Cmd+R）**让浏览器加载客户端模块。
 >
 > 源码仓库：[github.com/shlan28/dsh-business-agent](https://github.com/shlan28/dsh-business-agent)（本目录即仓库根）。
 
