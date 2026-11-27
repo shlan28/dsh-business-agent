@@ -146,6 +146,20 @@ export const ME = {
   ],
 }
 
+const QUESTIONS = [
+  ['identity.name', 'identity', me => !me.identity?.name, '你叫什么名字？'],
+  ['identity.oneLiner', 'identity', me => !me.identity?.oneLiner, '一句话说说你在做什么？'],
+  ['identity.stage', 'identity', me => !me.identity?.stage, '你现在是什么阶段（种子轮 / A 轮 / 已盈利 / 其他）？'],
+  ['goals', 'goals', me => !me.goals?.length, '今年最重要的一件事是什么？'],
+  ['needs', 'needs', me => !me.needs?.length, '你现在最需要什么（资金 / 客户 / 伙伴 / 招人 / 信息）？'],
+  ['offers', 'offers', me => !me.offers?.length, '你能给别人带来什么价值？'],
+  ['preferences.redLines', 'preferences', me => !me.preferences?.redLines?.length, '沟通上有什么忌讳（比如周末别发工作消息）？'],
+]
+
+const questionsOf = me =>
+  QUESTIONS.filter(([, , missing]) => missing({ ...me, identity: me.identity || {}, preferences: { redLines: [], ...(me.preferences || {}) } }))
+    .map(([key, field, , question]) => ({ key, field, question }))
+
 const now = () => new Date().toISOString()
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 
@@ -155,6 +169,8 @@ export function installMockApi({ dark = false, emptyProfile = false } = {}) {
     ? { updatedAt: null, identity: {}, needs: [], offers: [], goals: [], preferences: { redLines: [] }, sources: [] }
     : JSON.parse(JSON.stringify(ME))
   let revision = 7
+  let meChat = []
+  let meChatRunning = false
   const chats = new Map([['c_shen', { seq: 4, entries: DEMO_CHAT, sessionId: 's_preview_shen', running: false }]])
   const runs = new Map()
   const composes = new Map()
@@ -197,7 +213,47 @@ export function installMockApi({ dark = false, emptyProfile = false } = {}) {
     await sleep(60)
 
     if (path.endsWith('/business-cards/state')) {
-      return send({ revision, contacts: JSON.parse(JSON.stringify(contacts)), me, hasMe: Boolean(me.identity?.name), capabilities: { chat: true } })
+      return send({ revision, contacts: JSON.parse(JSON.stringify(contacts)), me, hasMe: Boolean(me.identity?.name), questions: questionsOf(me), capabilities: { chat: true } })
+    }
+    if (path.endsWith('/business-cards/me/chat/state')) {
+      return send({ revision, entries: meChat, running: meChatRunning, questions: questionsOf(me), sessionId: 's_preview_me' })
+    }
+    if (path.endsWith('/business-cards/me/chat/start')) {
+      if (meChat.length) return send({ started: false })
+      const next = questionsOf(me)[0]
+      meChatRunning = true
+      meChat = [
+        {
+          seq: 1,
+          role: 'assistant',
+          text: `好，先补一条最关键的：**${next?.question || '还有什么想补充的？'}**\n\n（回答后我会直接存进「我的名片」，然后问下一个。）`,
+          at: now(),
+        },
+      ]
+      meChatRunning = false
+      revision += 1
+      return send({ started: true })
+    }
+    if (path.endsWith('/business-cards/me/chat/send')) {
+      const text = String(body.text || '')
+      meChat = [...meChat, { seq: meChat.length + 1, role: 'user', text, at: now() }]
+      meChatRunning = true
+      revision += 1
+      void (async () => {
+        await sleep(900)
+        meChat.push({ seq: meChat.length + 1, role: 'tool', name: 'business_me_save', text: '更新档案', at: now() })
+        const remaining = questionsOf(me).filter(item => !text.includes(item.question))
+        const next = remaining[0]
+        meChat.push({
+          seq: meChat.length + 1,
+          role: 'assistant',
+          text: next ? `记下了。下一个：**${next.question}**` : '清单问完了。以后想到什么随时补一句，我会覆盖更新。',
+          at: now(),
+        })
+        meChatRunning = false
+        revision += 1
+      })()
+      return send({ ok: true })
     }
     if (path.endsWith('/business-cards/op')) {
       if (body.action === 'me') {
@@ -212,7 +268,7 @@ export function installMockApi({ dark = false, emptyProfile = false } = {}) {
           updatedAt: now(),
         }
         revision += 1
-        return send({ me, hasMe: Boolean(me.identity?.name), state: { revision, contacts } })
+        return send({ me, hasMe: Boolean(me.identity?.name), questions: questionsOf(me), state: { revision, contacts } })
       }
       if (body.action === 'meReset') {
         me = { updatedAt: now(), identity: {}, needs: [], offers: [], goals: [], preferences: { redLines: [] }, sources: [] }

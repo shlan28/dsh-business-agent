@@ -1,5 +1,7 @@
 import React from 'react'
-import { ChevronLeftIcon } from './icons.jsx'
+import { api } from './api.js'
+import { Body } from './chat.jsx'
+import { ArrowIcon, ChevronLeftIcon } from './icons.jsx'
 import { ACCENTS, dateLabel, initialOf, relativeTime, timeLabel } from './ui.jsx'
 
 export const NEED_LABELS = {
@@ -9,23 +11,6 @@ export const NEED_LABELS = {
   hiring: '招人',
   info: '信息',
   other: '其他',
-}
-
-const NEED_PREFIX = { 资金: 'funding', 客户: 'clients', 伙伴: 'partners', 招人: 'hiring', 信息: 'info' }
-
-const linesOf = list => (Array.isArray(list) ? list : []).map(item => item.text || '').filter(Boolean).join('\n')
-
-const splitLines = value =>
-  String(value || '')
-    .split('\n')
-    .map(line => line.trim())
-    .filter(Boolean)
-
-function parseNeeds(value) {
-  return splitLines(value).map(line => {
-    const match = line.match(/^(资金|客户|伙伴|招人|信息)[:：]\s*(.+)$/)
-    return match ? { kind: NEED_PREFIX[match[1]], text: match[2] } : { kind: 'other', text: line }
-  })
 }
 
 function Section({ title, children, aside }) {
@@ -54,8 +39,8 @@ function MePlate({ me }) {
   )
 }
 
-/** 我的名片：和联系人详情同构——左边是卡与档案，右边说明它怎么被用、以及信息来源。 */
-export function MyCard({ me, t, onBack, onEdit, onStart }) {
+/** 我的名片：左边是卡与档案，右边是一段专门用来「让 DSH 问我」的会话。 */
+export function MyCard({ me, questions, t, onBack, onToast, onMeChanged, onRefresh }) {
   const [flipped, setFlipped] = React.useState(false)
   const identity = me.identity || {}
   const needs = me.needs || []
@@ -64,7 +49,18 @@ export function MyCard({ me, t, onBack, onEdit, onStart }) {
   const prefs = me.preferences || {}
   const redLines = prefs.redLines || []
   const sources = me.sources || []
-  const hasAny = Boolean(identity.name || identity.oneLiner || needs.length || goals.length || offers.length)
+  const pending = questions || []
+
+  const clear = async () => {
+    if (!window.confirm(t('清空我的档案确认'))) return
+    try {
+      await api('/op', { method: 'POST', body: { action: 'meReset' } })
+      onToast?.(t('已清空'))
+      onMeChanged?.()
+    } catch (error) {
+      onToast?.(error?.message || String(error), { error: true })
+    }
+  }
 
   return (
     <div className="bc-detail open" aria-hidden="false">
@@ -77,7 +73,7 @@ export function MyCard({ me, t, onBack, onEdit, onStart }) {
           MY CARD · {identity.stage || t('待定')} · {identity.city || '—'}
         </span>
         <div className="dactions">
-          <button className="ghost solid" onClick={onEdit}>{t('编辑我的名片')}</button>
+          <span className="mono dim">{pending.length ? `${pending.length} ${t('个问题还没答')}` : t('档案已齐')}</span>
         </div>
       </div>
 
@@ -228,345 +224,257 @@ export function MyCard({ me, t, onBack, onEdit, onStart }) {
                 </div>
               ))}
             </div>
+            <div className="me-src-foot">
+              <span className="mono dim">
+                {t('更新于')} {me.updatedAt ? relativeTime(me.updatedAt) : '—'} · {sources.length} {t('条来源')}
+              </span>
+              <button className="mono dim me-clear" onClick={clear}>{t('清空我的档案')}</button>
+            </div>
           </Section>
         </aside>
 
-        <section className="chat me-side">
-          <div className="chat-head">
-            <div className="l">
-              <span className="chat-title">{t('我的档案')}</span>
-              <span className="live">
-                <i />
-                {t('仅本机')}
-              </span>
+        <MeChat
+          me={me}
+          questions={pending}
+          t={t}
+          onToast={onToast}
+          onMeChanged={onMeChanged}
+          onRefresh={onRefresh}
+        />
+      </div>
+    </div>
+  )
+}
+
+function MeChat({ me, questions, t, onToast, onMeChanged, onRefresh }) {
+  const [entries, setEntries] = React.useState([])
+  const [running, setRunning] = React.useState(false)
+  const [error, setError] = React.useState('')
+  const [input, setInput] = React.useState('')
+  const [sending, setSending] = React.useState(false)
+  const [pendingQuestion, setPendingQuestion] = React.useState(null)
+  const boxRef = React.useRef(null)
+  const textRef = React.useRef(null)
+  const aliveRef = React.useRef(true)
+  const startedRef = React.useRef(false)
+  const revisionRef = React.useRef(null)
+  const questionsRef = React.useRef(questions)
+  questionsRef.current = questions
+
+  const load = React.useCallback(async () => {
+    try {
+      const data = await api('/me/chat/state?after=0')
+      if (!aliveRef.current) return
+      setEntries(Array.isArray(data.entries) ? data.entries : [])
+      setRunning(Boolean(data.running))
+      setError(data.error || '')
+      if (revisionRef.current !== null && data.revision !== revisionRef.current) {
+        onRefresh?.()
+      }
+      if (data.revision !== undefined) revisionRef.current = data.revision
+    } catch (err) {
+      if (!aliveRef.current) return
+      setError(err?.message || String(err))
+    }
+  }, [onRefresh])
+
+  React.useEffect(() => {
+    aliveRef.current = true
+    void load()
+    return () => {
+      aliveRef.current = false
+    }
+  }, [load])
+
+  React.useEffect(() => {
+    const tick = () => {
+      if (document.visibilityState === 'visible') void load()
+    }
+    const timer = setInterval(tick, running ? 1200 : 4000)
+    return () => clearInterval(timer)
+  }, [load, running])
+
+  // 第一次进来且还没答过：让 DSH 主动开口问第一个问题。
+  React.useEffect(() => {
+    if (startedRef.current) return
+    if (entries.length || !questionsRef.current.length) return
+    startedRef.current = true
+    void (async () => {
+      try {
+        await api('/me/chat/start', { method: 'POST' })
+        await load()
+      } catch (err) {
+        setError(err?.message || String(err))
+      }
+    })()
+  }, [entries.length, load])
+
+  React.useEffect(() => {
+    const box = boxRef.current
+    if (!box) return
+    box.scrollTop = box.scrollHeight
+  }, [entries.length, running])
+
+  React.useEffect(() => {
+    if (pendingQuestion) textRef.current?.focus()
+  }, [pendingQuestion])
+
+  const send = async () => {
+    const text = input.trim()
+    if (!text || sending) return
+    setSending(true)
+    setError('')
+    const payload = pendingQuestion ? `关于「${pendingQuestion.question}」：${text}` : text
+    try {
+      await api('/me/chat/send', { method: 'POST', body: { text: payload } })
+      setInput('')
+      setPendingQuestion(null)
+      await load()
+    } catch (err) {
+      setError(err?.message || String(err))
+    } finally {
+      setSending(false)
+    }
+  }
+
+  const pickQuestion = question => {
+    setPendingQuestion(question)
+    onToast?.(t('直接说答案就行'))
+  }
+
+  const status = running ? t('正在问我') : entries.length ? t('已连接') : t('准备开始')
+
+  return (
+    <section className="chat me-chat">
+      <div className="chat-head">
+        <div className="l">
+          <span className="chat-title">{t('补全我的档案')}</span>
+          <span className="live">
+            <i className={running ? 'pulse' : ''} />
+            {status}
+          </span>
+        </div>
+        <span className="mono dim">DSH</span>
+      </div>
+
+      <div className="msgs" ref={boxRef}>
+        {!entries.length && !running ? (
+          <div className="empty-chat">
+            <div className="big">
+              Before the people, <em>you</em>.
             </div>
-            <span className="mono dim">DSH</span>
+            <p>{t('DSH 会一个问题一个问题地问你')}，答案只存本机；答过的不会再问，跳过也没关系。</p>
           </div>
+        ) : null}
 
-          <div className="me-panel">
-            {hasAny ? (
-              <>
-                <p className="me-lead">
-                  {t('这段档案会拼在每次建议前面')} —— DSH 先看「我是谁、要什么、能给什么」，再看对方是谁，然后才给结论。
-                </p>
-                <div className="me-tips">
-                  <div className="me-tip"><b>1</b><span>{t('研究从我的目标出发')}：只留下和我的需求相关的信息。</span></div>
-                  <div className="me-tip"><b>2</b><span>{t('建议要落到三块')}：我能给对方什么 / 对方能帮我什么 / 下一步做什么。</span></div>
-                  <div className="me-tip"><b>3</b><span>{t('信息不全时先问')}：DSH 会先问我，而不是替我编。</span></div>
+        {entries.map(entry => {
+          if (entry.role === 'user') {
+            return (
+              <div className="msg me" key={entry.seq}>
+                {entry.text}
+              </div>
+            )
+          }
+          if (entry.role === 'assistant') {
+            return (
+              <div className="msg" key={entry.seq}>
+                <div className="who">
+                  <span className="mark">DSH</span>
+                  <b>DEEPSEEK HARNESS</b>
+                  <time>{timeLabel(entry.at)}</time>
                 </div>
-
-                <div className="section" style={{ marginTop: 28 }}>
-                  <div className="sec-head">
-                    <span className="mono">HOW THIS GOT HERE</span>
-                    <span className="rule" />
-                    <span className="mono dim">{sources.length}</span>
-                  </div>
-                  {sources.length ? (
-                    <div className="timeline">
-                      {sources.slice(0, 8).map((source, index) => (
-                        <div className="titem" key={`${source.at}-${index}`}>
-                          <div className="when">
-                            {dateLabel(source.at)} {timeLabel(source.at)} · {source.kind === 'chat' ? t('来自对话') : source.kind === 'form' ? t('手填') : source.kind}
-                          </div>
-                          <div className="what">{source.note}</div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="bc-empty-research">{t('还没有记录来源')}</p>
-                  )}
-                </div>
-              </>
-            ) : (
-              <div className="me-empty">
-                <div className="big">Before the people, <em>you</em>.</div>
-                <p>{t('先说说你自己，建议才有依据')}：你在做什么、今年要什么、现在缺什么、能给别人什么、说话上有哪些忌讳。</p>
-                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                  <button className="bc-btn primary" onClick={onStart}>{t('开始填写')}</button>
-                  <button className="bc-btn" onClick={onEdit}>{t('直接编辑')}</button>
+                <div className="body">
+                  <Body text={entry.text} />
                 </div>
               </div>
-            )}
+            )
+          }
+          if (entry.role === 'tool') {
+            return (
+              <div className="msg" key={entry.seq} style={{ maxWidth: 660 }}>
+                <div className="tool">
+                  <span>{entry.text}</span>
+                  {entry.name ? <span className="dim"> · {entry.name}</span> : null}
+                </div>
+              </div>
+            )
+          }
+          if (entry.role === 'error') {
+            return (
+              <div className="msg error" key={entry.seq}>
+                {entry.text}
+              </div>
+            )
+          }
+          return (
+            <div className="msg system" key={entry.seq}>
+              {entry.text}
+            </div>
+          )
+        })}
+
+        {running ? (
+          <div className="msg">
+            <div className="tool">
+              <span className="bc-typing" aria-hidden="true"><i /><i /><i /></span>
+              {t('正在回复')}…
+            </div>
           </div>
-        </section>
+        ) : null}
+
+        {error ? <div className="msg error">{error}</div> : null}
       </div>
-    </div>
-  )
-}
 
-const EMPTY_DRAFT = {
-  name: '',
-  nameEn: '',
-  title: '',
-  company: '',
-  city: '',
-  stage: '',
-  oneLiner: '',
-  goals: '',
-  needs: '',
-  offers: '',
-  tone: '',
-  channel: '',
-  cadence: '',
-  redLines: '',
-}
-
-function draftOf(me) {
-  const identity = me?.identity || {}
-  const prefs = me?.preferences || {}
-  return {
-    name: identity.name || '',
-    nameEn: identity.nameEn || '',
-    title: identity.title || '',
-    company: identity.company || '',
-    city: identity.city || '',
-    stage: identity.stage || '',
-    oneLiner: identity.oneLiner || '',
-    goals: linesOf(me?.goals),
-    needs: (me?.needs || []).map(item => `${NEED_LABELS[item.kind] || '其他'}：${item.text}`).join('\n'),
-    offers: linesOf(me?.offers),
-    tone: prefs.tone || '',
-    channel: prefs.channel || '',
-    cadence: prefs.cadence || '',
-    redLines: (prefs.redLines || []).join('\n'),
-  }
-}
-
-export function mePatchFromDraft(draft) {
-  return {
-    identity: {
-      name: draft.name,
-      nameEn: draft.nameEn,
-      title: draft.title,
-      company: draft.company,
-      city: draft.city,
-      stage: draft.stage,
-      oneLiner: draft.oneLiner,
-    },
-    goals: splitLines(draft.goals).map(text => ({ text })),
-    needs: parseNeeds(draft.needs),
-    offers: splitLines(draft.offers).map(text => ({ text })),
-    preferences: {
-      tone: draft.tone,
-      channel: draft.channel,
-      cadence: draft.cadence,
-      redLines: splitLines(draft.redLines),
-    },
-  }
-}
-
-/** 编辑弹层：与名片编辑器同一套外壳。 */
-export function MeEditor({ me, t, onSave, onClear, onClose }) {
-  const [draft, setDraft] = React.useState(() => draftOf(me))
-  const [busy, setBusy] = React.useState(false)
-  const [error, setError] = React.useState('')
-  const update = patch => setDraft(current => ({ ...current, ...patch }))
-
-  const submit = async () => {
-    if (busy) return
-    setBusy(true)
-    setError('')
-    try {
-      await onSave(mePatchFromDraft(draft))
-      onClose()
-    } catch (err) {
-      setError(err?.message || String(err))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const clear = async () => {
-    if (!window.confirm(t('清空我的档案确认'))) return
-    setBusy(true)
-    try {
-      await onClear()
-      onClose()
-    } catch (err) {
-      setError(err?.message || String(err))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <div
-      className="bc-editor-backdrop"
-      onMouseDown={event => {
-        if (event.target === event.currentTarget) onClose()
-      }}
-    >
-      <div className="bc-editor" role="dialog" aria-modal="true" aria-label={t('编辑我的名片')}>
-        <div className="bc-editor-head">
-          <div>
-            <div className="mono dim">MY CARD</div>
-            <div className="bc-editor-title">{t('编辑我的名片')}</div>
+      <div className="composer">
+        {questions.length ? (
+          <div className="me-questions">
+            <span className="mono dim">{t('还没答的问题')}</span>
+            <div className="me-qs">
+              {questions.map(question => (
+                <button
+                  key={question.key}
+                  className={`me-q ${pendingQuestion?.key === question.key ? 'active' : ''}`}
+                  onClick={() => pickQuestion(question)}
+                >
+                  {question.question}
+                </button>
+              ))}
+            </div>
           </div>
-          <button className="bc-editor-close" onClick={onClose} aria-label={t('收起')}>×</button>
-        </div>
-
-        <div className="bc-form">
-          <label className="bc-field">
-            <span>{t('姓名')}</span>
-            <input value={draft.name} onChange={event => update({ name: event.target.value })} autoFocus />
-          </label>
-          <label className="bc-field">
-            <span>{t('英文名')}</span>
-            <input value={draft.nameEn} onChange={event => update({ nameEn: event.target.value })} />
-          </label>
-          <label className="bc-field">
-            <span>{t('角色')}</span>
-            <input value={draft.title} onChange={event => update({ title: event.target.value })} />
-          </label>
-          <label className="bc-field">
-            <span>{t('公司')}</span>
-            <input value={draft.company} onChange={event => update({ company: event.target.value })} />
-          </label>
-          <label className="bc-field">
-            <span>{t('阶段')}</span>
-            <input value={draft.stage} onChange={event => update({ stage: event.target.value })} placeholder="种子轮 / A 轮 / 已盈利" />
-          </label>
-          <label className="bc-field">
-            <span>{t('城市')}</span>
-            <input value={draft.city} onChange={event => update({ city: event.target.value })} />
-          </label>
-          <label className="bc-field wide">
-            <span>{t('一句话说清你在做什么')}</span>
-            <input value={draft.oneLiner} onChange={event => update({ oneLiner: event.target.value })} placeholder="做 AI 原生的社区与开发工具" />
-          </label>
-          <label className="bc-field wide">
-            <span>{t('今年目标')} · {t('每行一条')}</span>
-            <textarea value={draft.goals} onChange={event => update({ goals: event.target.value })} placeholder={'跑通 3 个标杆客户的付费'} />
-          </label>
-          <label className="bc-field wide">
-            <span>{t('现在最需要什么')} · {t('每行一条，可用「资金：」「客户：」「伙伴：」「招人：」「信息：」开头')}</span>
-            <textarea value={draft.needs} onChange={event => update({ needs: event.target.value })} placeholder={'资金：Q1 前融完 500 万种子轮\n招人：懂社区运营的合伙人'} />
-          </label>
-          <label className="bc-field wide">
-            <span>{t('我能给别人的价值')} · {t('每行一条')}</span>
-            <textarea value={draft.offers} onChange={event => update({ offers: event.target.value })} placeholder={'帮人看 AI 产品的技术选型'} />
-          </label>
-          <label className="bc-field">
-            <span>{t('沟通风格')}</span>
-            <input value={draft.tone} onChange={event => update({ tone: event.target.value })} placeholder="直接、少寒暄" />
-          </label>
-          <label className="bc-field">
-            <span>{t('首选渠道')}</span>
-            <input value={draft.channel} onChange={event => update({ channel: event.target.value })} placeholder="微信优先" />
-          </label>
-          <label className="bc-field">
-            <span>{t('维护节奏')}</span>
-            <input value={draft.cadence} onChange={event => update({ cadence: event.target.value })} placeholder="重要的人 3 周一次" />
-          </label>
-          <label className="bc-field wide">
-            <span>{t('忌讳')} · {t('每行一条')}</span>
-            <textarea value={draft.redLines} onChange={event => update({ redLines: event.target.value })} placeholder={'周末不发工作消息'} />
-          </label>
-        </div>
-
-        {error ? <div className="bc-editor-error">{error}</div> : null}
-
-        <div className="bc-editor-foot">
-          <div>
-            <button className="bc-btn danger" onClick={clear} disabled={busy}>{t('清空我的档案')}</button>
+        ) : (
+          <div className="me-questions">
+            <span className="mono dim">{t('清单已经答完')} · {t('想到什么随时补一句')}</span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span className="bc-editor-hint">{t('只保存在本机')}</span>
-            <button className="bc-btn" onClick={onClose}>{t('取消')}</button>
-            <button className="bc-btn primary" onClick={submit} disabled={busy}>{busy ? '…' : t('保存')}</button>
+        )}
+
+        <div className="box">
+          {pendingQuestion ? (
+            <div className="me-pending mono">
+              {t('正在回答')}：{pendingQuestion.question}
+              <button className="mono dim" onClick={() => setPendingQuestion(null)}>{t('取消')}</button>
+            </div>
+          ) : null}
+          <textarea
+            ref={textRef}
+            rows={2}
+            value={input}
+            onChange={event => setInput(event.target.value)}
+            placeholder={pendingQuestion ? t('直接说答案，DSH 会记进档案') : t('说点什么，或点上面的问题回答…')}
+            onKeyDown={event => {
+              if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent?.isComposing) {
+                event.preventDefault()
+                void send()
+              }
+            }}
+          />
+          <div className="box-foot">
+            <span className="hint">ENTER 发送 · SHIFT + ENTER 换行</span>
+            <button className="send" onClick={send} disabled={sending || !input.trim()} aria-label={t('发送')}>
+              <ArrowIcon size={13} />
+            </button>
           </div>
         </div>
       </div>
-    </div>
-  )
-}
-
-const GUIDE_FIELDS = [
-  ['name', '你叫什么'],
-  ['oneLiner', '一句话：你在做什么'],
-  ['goals', '今年最重要的一件事'],
-  ['needs', '现在最需要什么（资金 / 客户 / 伙伴 / 招人 / 信息）'],
-  ['offers', '你能给别人什么价值'],
-  ['redLines', '沟通上有什么忌讳（可空）'],
-]
-
-/** 首次引导：6 个问题一次填完，直接生成可用的最小档案。 */
-export function MeGuide({ t, onSave, onSkip }) {
-  const [draft, setDraft] = React.useState({ name: '', oneLiner: '', goals: '', needs: '', offers: '', redLines: '' })
-  const [busy, setBusy] = React.useState(false)
-  const [error, setError] = React.useState('')
-
-  const submit = async () => {
-    if (busy) return
-    setBusy(true)
-    setError('')
-    try {
-      await onSave(
-        mePatchFromDraft({
-          ...EMPTY_DRAFT,
-          name: draft.name,
-          oneLiner: draft.oneLiner,
-          goals: draft.goals,
-          needs: draft.needs,
-          offers: draft.offers,
-          redLines: draft.redLines,
-        }),
-      )
-    } catch (err) {
-      setError(err?.message || String(err))
-      setBusy(false)
-    }
-  }
-
-  return (
-    <div
-      className="bc-editor-backdrop"
-      onMouseDown={event => {
-        if (event.target === event.currentTarget) onSkip()
-      }}
-    >
-      <div className="bc-editor bc-guide" role="dialog" aria-modal="true" aria-label={t('说说你自己')}>
-        <div className="bc-editor-head">
-          <div>
-            <div className="mono dim">BEFORE THE PEOPLE</div>
-            <div className="bc-editor-title">{t('先说说你自己')}</div>
-          </div>
-          <button className="bc-editor-close" onClick={onSkip} aria-label={t('稍后再说')}>×</button>
-        </div>
-        <p className="bc-compose-lead">
-          {t('建议质量取决于我对你的了解')}。这 6 个问题大概 30 秒，答案只存在本机；以后可以随时在「我的名片」里改。
-        </p>
-        <div className="bc-form">
-          {GUIDE_FIELDS.map(([key, label]) => (
-            <label className={`bc-field ${key === 'name' ? '' : 'wide'}`} key={key}>
-              <span>{label}</span>
-              {key === 'name' ? (
-                <input value={draft[key]} onChange={event => setDraft({ ...draft, [key]: event.target.value })} autoFocus />
-              ) : (
-                <input
-                  value={draft[key]}
-                  onChange={event => setDraft({ ...draft, [key]: event.target.value })}
-                  placeholder={
-                    key === 'oneLiner' ? '做 AI 原生的社区与开发工具'
-                      : key === 'goals' ? '跑通 3 个标杆客户的付费'
-                        : key === 'needs' ? '资金：Q1 前融完 500 万种子轮'
-                          : key === 'offers' ? '帮人看 AI 产品的技术选型'
-                            : '周末不发工作消息'
-                  }
-                />
-              )}
-            </label>
-          ))}
-        </div>
-        {error ? <div className="bc-editor-error">{error}</div> : null}
-        <div className="bc-editor-foot">
-          <button className="bc-btn" onClick={onSkip}>{t('稍后再说')}</button>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span className="bc-editor-hint">{t('只保存在本机')}</span>
-            <button className="bc-btn primary" onClick={submit} disabled={busy}>{busy ? '…' : t('保存')}</button>
-          </div>
-        </div>
-      </div>
-    </div>
+    </section>
   )
 }

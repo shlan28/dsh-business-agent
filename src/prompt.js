@@ -124,6 +124,45 @@ const RULES = [
   '如果用户只是聊天或让你起草消息，直接回答；如果完成了检索，用 business_contact_research_save 往这张卡追加一条研究记录（每条都要带来源 URL 与检索日期，不要覆盖旧记录）。',
 ].join('')
 
+/** 「我的档案」还缺哪些信息：会话里按这个清单一个个问，页面上也显示成待回答的问题。 */
+export function meQuestions(me) {
+  const identity = me?.identity || {}
+  const prefs = me?.preferences || {}
+  const list = []
+  if (!identity.name) list.push({ key: 'identity.name', field: 'identity', question: '你叫什么名字？' })
+  if (!identity.oneLiner) list.push({ key: 'identity.oneLiner', field: 'identity', question: '一句话说说你在做什么？' })
+  if (!identity.stage) list.push({ key: 'identity.stage', field: 'identity', question: '你现在是什么阶段（种子轮 / A 轮 / 已盈利 / 其他）？' })
+  if (!me?.goals?.length) list.push({ key: 'goals', field: 'goals', question: '今年最重要的一件事是什么？' })
+  if (!me?.needs?.length) list.push({ key: 'needs', field: 'needs', question: '你现在最需要什么（资金 / 客户 / 伙伴 / 招人 / 信息）？' })
+  if (!me?.offers?.length) list.push({ key: 'offers', field: 'offers', question: '你能给别人带来什么价值？' })
+  if (!prefs.redLines?.length) list.push({ key: 'preferences.redLines', field: 'preferences', question: '沟通上有什么忌讳（比如周末别发工作消息）？' })
+  return list
+}
+
+const ME_CHAT_RULES = [
+  '你在帮用户补全他/她自己的「我的名片」（本地档案），不是聊某个联系人。',
+  '规则：',
+  '1. 一次只问一个问题：从「还没填」里挑最关键的一个，问完等回答，不要一口气列多个问题。',
+  '2. 用户回答后，用 business_me_save 保存；一次说了多条就分字段存，source.note 填用户原话（可截断）。',
+  '3. 已经填过的不重复问；用户说「不知道 / 跳过 / 以后再说」就记下跳过，直接问下一个。',
+  '4. 不编造，不把推测写成事实；数字、金额、人名必须以用户说的为准。',
+  '5. 每轮回复要短：一句确认（存了什么）+ 下一个问题。',
+  '6. 清单问完或用户说「够了」就收尾：一句话总结档案里现在有什么，并提醒随时可以回来补充。',
+].join('\n')
+
+/** 「我的名片」会话：主动提问 + 边问边存。 */
+export function meChatPrompt(me, text) {
+  const current = meDossier(me) || '（还没有任何信息）'
+  const gaps = meQuestions(me)
+  const gapText = gaps.length
+    ? gaps.map((item, index) => `${index + 1}. ${item.question}（${item.field}）`).join('\n')
+    : '（都已填，不用再问清单；可以聊聊还有没有想补充的）'
+  return `${current}\n\n【还没填】\n${gapText}\n\n${ME_CHAT_RULES}\n\n用户：${text}`
+}
+
+/** 第一次进「我的名片」时用它开场。 */
+export const ME_CHAT_KICKOFF = '开始吧：看一下我的档案，从还没填的内容里挑最关键的一个问题问我。'
+
 /** 普通对话 / 研究请求的完整提示词。me 是「我」的档案，用来让建议落在我的处境上。 */
 export function chatPrompt(contact, text, kind = 'chat', me = null) {
   const mine = meDossier(me)

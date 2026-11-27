@@ -136,6 +136,21 @@ const EN = {
   '现在最需要什么（资金 / 客户 / 伙伴 / 招人 / 信息）': 'What do you need right now (funding / clients / partners / hiring / info)',
   你能给别人什么价值: 'What value can you offer others',
   '沟通上有什么忌讳（可空）': 'Any communication red lines (optional)',
+  个问题还没答: 'questions left',
+  档案已齐: 'Profile complete',
+  更新于: 'Updated',
+  条来源: 'sources',
+  补全我的档案: 'Fill in my profile',
+  正在问我: 'Asking you',
+  准备开始: 'Ready',
+  'DSH 会一个问题一个问题地问你': 'DSH will ask you one question at a time',
+  直接说答案就行: 'Just type the answer',
+  还没答的问题: 'Unanswered questions',
+  清单已经答完: 'All questions answered',
+  想到什么随时补一句: 'add anything anytime',
+  正在回答: 'Answering',
+  '直接说答案，DSH 会记进档案': 'Type the answer; DSH will save it',
+  '说点什么，或点上面的问题回答…': 'Say something, or tap a question above…',
 }
 
 export function registerLocale(ctx) {

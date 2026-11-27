@@ -182,9 +182,9 @@
 .bc-root .ghost.solid{background:var(--ink);color:var(--paper);border-color:var(--ink)}
 .bc-root .ghost.solid:hover{opacity:.85}
 .bc-root .dbody{flex:1;min-height:0;display:grid;grid-template-columns:330px minmax(0,1fr);gap:46px;padding:12px 54px 0;max-width:1440px;width:100%;margin:0 auto}
-.bc-root .rail{overflow:auto;padding-bottom:40px;scrollbar-width:thin}
-.bc-root .rail::-webkit-scrollbar{width:5px}
-.bc-root .rail::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px}
+.bc-root .rail{overflow:auto;padding-bottom:40px;scrollbar-width:none;-ms-overflow-style:none}
+.bc-root .rail::-webkit-scrollbar{width:0;height:0}
+.bc-root .rail::-webkit-scrollbar-thumb{background:transparent}
 .bc-root .flip{perspective:1200px;width:100%;height:352px;cursor:pointer}
 .bc-root .flip-inner{position:relative;width:100%;height:100%;transform-style:preserve-3d;transition:transform .75s cubic-bezier(.2,.75,.25,1)}
 .bc-root .flip.flipped .flip-inner{transform:rotateY(180deg)}
@@ -440,19 +440,24 @@
   .bc-root .bc-doc .srclist { grid-template-columns: 1fr; }
 }
 
-/* 我的名片：入口在名片墙右上角，页面与联系人详情同构 */
+/* 我的名片：入口在名片墙右上角，页面与联系人详情同构；右边是让 DSH 提问的会话 */
 .bc-root .brand .mine { margin-left: auto; font-family: var(--mono); font-size: 8px; letter-spacing: .14em;
   text-transform: uppercase; color: var(--muted); border: 1px solid var(--line); border-radius: 999px;
   padding: 6px 11px; background: var(--card); transition: .18s; }
 .bc-root .brand .mine:hover { color: var(--ink); border-color: var(--ink); }
-.bc-root .me-panel { padding-top: 20px; max-width: 620px; }
-.bc-root .me-lead { font-size: 12.5px; line-height: 1.85; color: var(--ink-2); }
-.bc-root .me-tips { margin-top: 18px; display: flex; flex-direction: column; gap: 10px; }
-.bc-root .me-tip { display: flex; gap: 10px; align-items: flex-start; font-size: 11.5px; line-height: 1.7; color: var(--ink-2);
-  border-left: 2px solid var(--lav-soft); padding: 2px 0 2px 12px; }
-.bc-root .me-tip b { font-family: var(--mono); font-size: 8px; font-weight: 400; letter-spacing: .1em; color: var(--lav); padding-top: 3px; }
-.bc-root .me-empty { padding: 46px 0 20px; display: flex; flex-direction: column; gap: 14px; }
-.bc-root .me-empty .big { font-size: 26px; line-height: 1.25; letter-spacing: -.02em; color: var(--ink); }
-.bc-root .me-empty .big em { font-style: normal; color: var(--lav); }
-.bc-root .me-empty p { font-size: 12px; line-height: 1.8; color: var(--muted); max-width: 34em; }
-.bc-root .bc-guide { width: min(680px, 100%); }
+.bc-root .me-src-foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 14px; }
+.bc-root .me-src-foot .mono { font-size: 7px; letter-spacing: .1em; }
+.bc-root .me-clear:hover { color: #9a4a41; }
+.bc-root .me-questions { padding: 12px 0 4px; }
+.bc-root .me-questions > .mono { display: block; font-size: 7.5px; letter-spacing: .12em; margin-bottom: 8px; }
+.bc-root .me-qs { display: flex; flex-wrap: wrap; gap: 6px; }
+.bc-root .me-q { font-size: 10.5px; line-height: 1.4; text-align: left; color: var(--muted);
+  border: 1px dashed var(--line); border-radius: 999px; padding: 5px 10px; background: var(--card);
+  transition: .16s; }
+.bc-root .me-q:hover { color: var(--ink); border-color: var(--lav); border-style: solid; }
+.bc-root .me-q.active { color: var(--ink); border-style: solid; border-color: var(--lav); background: var(--lav-soft); }
+.bc-root .me-pending { display: flex; justify-content: space-between; align-items: baseline; gap: 10px;
+  font-size: 8px; letter-spacing: .04em; color: var(--lav); border-bottom: 1px solid var(--line-soft);
+  padding-bottom: 7px; margin-bottom: 7px; }
+.bc-root .me-pending button { flex: none; font-size: 8px; }
+.bc-root .me-chat .msgs { padding-top: 22px; }

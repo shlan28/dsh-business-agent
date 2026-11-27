@@ -185,6 +185,7 @@ function normalizeRedLines(value) {
 
 const emptyMe = () => ({
   updatedAt: null,
+  sessionId: null,
   identity: { name: '', nameEn: '', title: '', company: '', oneLiner: '', city: '', stage: '' },
   needs: [],
   offers: [],
@@ -214,6 +215,7 @@ export function normalizeMe(raw) {
   }
   return {
     updatedAt: iso(source.updatedAt),
+    sessionId: text(source.sessionId, 200) || null,
     identity: {
       name: text(identity.name, ME_LIMITS.name),
       nameEn: text(identity.nameEn, ME_LIMITS.name),
@@ -462,6 +464,13 @@ export class Store {
     this.revision += 1
     await this.enqueue(() => this.writeMe())
     return this.publicMe()
+  }
+
+  /** 绑定「我的名片」专用的 DSH 会话（补全问题用，互不复用）。 */
+  async bindMeSession(sessionId) {
+    this.me.sessionId = text(sessionId, 200) || null
+    await this.enqueue(() => this.writeMe())
+    return this.me.sessionId
   }
 
   /** 清空「我」的档案（设置页的「清空」）。 */

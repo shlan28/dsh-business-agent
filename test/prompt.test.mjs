@@ -49,3 +49,17 @@ test('research prompt tells the model to filter by my goals', () => {
   assert.match(text, /我的目标/)
   assert.match(text, /联网检索/)
 })
+
+test('my-card chat prompt lists the missing questions one at a time', async () => {
+  const { meQuestions, meChatPrompt } = await import('../src/prompt.js')
+  const empty = meQuestions({ identity: {}, preferences: { redLines: [] } })
+  assert.equal(empty.length, 7)
+  const prompt = meChatPrompt({ identity: { name: '石璐' } }, '开始吧')
+  assert.match(prompt, /【还没填】/)
+  assert.match(prompt, /一句话说说你在做什么/)
+  assert.match(prompt, /一次只问一个问题/)
+
+  const full = meQuestions(me)
+  assert.equal(full.length, 0, '档案齐全时不再有清单')
+  assert.match(meChatPrompt(me, '我还有什么要补的？'), /都已填/)
+})

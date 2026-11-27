@@ -2,12 +2,20 @@
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { HttpError, LIMITS, Store, hasMe, publicContact } from './store.js'
-import { chatPrompt, composePrompt, researchInstruction } from './prompt.js'
+import {
+  ME_CHAT_KICKOFF,
+  chatPrompt,
+  composePrompt,
+  meChatPrompt,
+  meQuestions,
+  researchInstruction,
+} from './prompt.js'
 
 export const name = 'business-cards'
 export const inject = ['webServer']
 
 const PREFIX = '/business-cards'
+const ME_CHAT_ID = 'me'
 const MAX_BODY = 1_000_000
 
 const messageOf = error => {
@@ -75,6 +83,8 @@ export function apply(ctx, config = {}) {
 
   /** 每个联系人当前轮次的状态；重启后从空闲开始。 */
   const runs = new Map()
+  /** 「我的名片」补全会话的轮次状态。 */
+  const meRun = { running: false, error: '', lastAssistant: '', lastAssistantAt: 0 }
   /** 一句话新建的临时会话：sessionId → compose 记录。 */
   const composes = new Map()
   const runOf = id => {
@@ -249,6 +259,69 @@ export function apply(ctx, config = {}) {
     return { ok: true }
   }
 
+  async function ensureMeSession() {
+    if (store.me?.sessionId) return store.me.sessionId
+    const sessionId = await openDshSession()
+    await store.bindMeSession(sessionId)
+    return sessionId
+  }
+
+  /** 给「我的名片」发一轮：DSH 会按缺失清单提问，回答通过 business_me_save 落盘。 */
+  async function sendMe(rawText) {
+    await ready
+    const text = typeof rawText === 'string' ? rawText.trim().slice(0, LIMITS.chatText) : ''
+    if (!text) throw new HttpError(400, '说点什么再发送')
+    const ctrl = sessionController()
+    if (!ctrl) throw new HttpError(503, '当前环境没有会话服务，暂时无法在会话里补全档案')
+    if (meRun.running) throw new HttpError(409, 'DSH 正在回复，先等一下')
+    const sessionId = await ensureMeSession()
+    meRun.running = true
+    meRun.error = ''
+    await store.appendChat(ME_CHAT_ID, { role: 'user', text, at: Date.now() })
+    const requestId = `bc-me-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
+    const prompt = meChatPrompt(store.publicMe(), text)
+    void (async () => {
+      try {
+        await ctrl.prompt(
+          { sessionId, requestId, mode: 'queue', content: [{ type: 'text', text: prompt }] },
+          new AbortController().signal,
+        )
+      } catch (error) {
+        meRun.running = false
+        meRun.error = messageOf(error)
+        await store
+          .appendChat(ME_CHAT_ID, { role: 'error', text: `DSH 没有接住这次请求：${meRun.error}`, at: Date.now() })
+          .catch(() => {})
+      }
+    })()
+    return { ok: true, sessionId }
+  }
+
+  /** 第一次打开「我的名片」：让 DSH 主动问第一个问题（已有对话就不重复开场）。 */
+  async function startMeChat() {
+    await ready
+    const chat = await store.chatDelta(ME_CHAT_ID, 0)
+    if (chat.entries.length) return { ok: true, started: false, sessionId: store.me?.sessionId || null }
+    const result = await sendMe(ME_CHAT_KICKOFF)
+    return { ...result, started: true }
+  }
+
+  async function meChatState(after) {
+    await ready
+    const chat = await store.chatDelta(ME_CHAT_ID, after)
+    return {
+      ok: true,
+      sessionId: store.me?.sessionId || null,
+      revision: store.revision,
+      running: meRun.running,
+      error: meRun.error,
+      entries: chat.entries,
+      lastSeq: chat.lastSeq,
+      hasMe: hasMe(store.me),
+      questions: meQuestions(store.publicMe()),
+    }
+  }
+
   async function research(contactId, focus) {
     const text = researchInstruction(focus)
     return send(contactId, text, 'research')
@@ -337,6 +410,46 @@ export function apply(ctx, config = {}) {
           }
           return
         }
+        if (store.me?.sessionId && String(sessionId) === store.me.sessionId) {
+          const data = event?.data ?? {}
+          const at = Date.now()
+          switch (event?.type) {
+            case 'turn/start':
+              meRun.running = true
+              meRun.error = ''
+              break
+            case 'tool/call': {
+              const name = typeof data.name === 'string' ? data.name : ''
+              if (!name) break
+              void store.appendChat(ME_CHAT_ID, { role: 'tool', name, text: toolLabel(name), at }).catch(() => {})
+              break
+            }
+            case 'assistant/message': {
+              const text = messageText(data)
+              if (!text) break
+              if (text === meRun.lastAssistant && at - meRun.lastAssistantAt < 10_000) break
+              meRun.lastAssistant = text
+              meRun.lastAssistantAt = at
+              void store.appendChat(ME_CHAT_ID, { role: 'assistant', text, at }).catch(() => {})
+              break
+            }
+            case 'turn/end': {
+              meRun.running = false
+              meRun.lastAssistant = ''
+              const reason = data.reason ?? {}
+              if (reason.kind === 'aborted') {
+                void store.appendChat(ME_CHAT_ID, { role: 'system', text: '已停止', at }).catch(() => {})
+              } else if (reason.kind && reason.kind !== 'completed') {
+                meRun.error = messageOf(reason.error?.message || `执行结束：${reason.kind}`)
+                void store.appendChat(ME_CHAT_ID, { role: 'error', text: meRun.error, at }).catch(() => {})
+              }
+              break
+            }
+            default:
+              break
+          }
+          return
+        }
         const contact = store.bySession(String(sessionId))
         if (!contact) return
         const run = runOf(contact.id)
@@ -407,6 +520,7 @@ export function apply(ctx, config = {}) {
                 ...store.snapshot(),
                 me: store.publicMe(),
                 hasMe: hasMe(store.me),
+                questions: meQuestions(store.publicMe()),
                 capabilities: {
                   chat: Boolean(sessionController()),
                 },
@@ -431,6 +545,20 @@ export function apply(ctx, config = {}) {
             if (route === '/chat/stop' && method === 'POST') {
               const body = await readJson(req)
               json(res, 200, await stop(body?.id))
+              return
+            }
+            if (route === '/me/chat/state' && method === 'GET') {
+              const after = Number(url.searchParams.get('after') || 0)
+              json(res, 200, await meChatState(after))
+              return
+            }
+            if (route === '/me/chat/send' && method === 'POST') {
+              const body = await readJson(req)
+              json(res, 200, await sendMe(body?.text))
+              return
+            }
+            if (route === '/me/chat/start' && method === 'POST') {
+              json(res, 200, await startMeChat())
               return
             }
             if (route === '/research' && method === 'POST') {
