@@ -479,3 +479,30 @@
   .bc-root .dbody { scrollbar-width: none; -ms-overflow-style: none; }
   .bc-root .dbody::-webkit-scrollbar { width: 0; height: 0; }
 }
+
+/* 会话 / 研究文档里的 Markdown 排版 */
+.bc-root .bc-body-text { white-space: normal; }
+.bc-root .bc-md .md-para { margin: 0 0 10px; }
+.bc-root .bc-md .md-para:last-child { margin-bottom: 0; }
+.bc-root .bc-md .md-heading { margin: 16px 0 8px; font-weight: 600; letter-spacing: -.01em; line-height: 1.45; }
+.bc-root .bc-md .md-heading:first-child { margin-top: 0; }
+.bc-root .bc-md .md-heading.high { font-size: 13.5px; color: var(--ink); }
+.bc-root .bc-md .md-heading.low { font-size: 12px; color: var(--ink-2); }
+.bc-root .bc-md :is(ul, ol).md-list { display: block; margin: 6px 0 12px; padding-left: 18px; }
+.bc-root .bc-md .md-list li { display: list-item; font-size: 12.5px; line-height: 1.8; margin: 3px 0; color: var(--ink); }
+.bc-root .bc-md .md-list.bullet li { list-style: disc outside; }
+.bc-root .bc-md .md-list.ordered li { list-style: decimal outside; }
+.bc-root .bc-md .md-quote { margin: 10px 0; padding: 2px 0 2px 12px; border-left: 2px solid var(--lav-soft);
+  color: var(--muted); font-size: 12px; line-height: 1.8; }
+.bc-root .bc-md .md-code { margin: 10px 0; padding: 10px 12px; max-width: 100%; overflow: auto;
+  background: color-mix(in srgb, var(--ink) 5%, transparent); border: 1px solid var(--line-soft);
+  border-radius: 8px; font-family: var(--mono); font-size: 10.5px; line-height: 1.65; color: var(--ink-2);
+  scrollbar-width: thin; }
+.bc-root .bc-md .md-code code { white-space: pre-wrap; word-break: break-word; background: none; padding: 0; font-size: inherit; }
+.bc-root .bc-md .md-rule { border: 0; border-top: 1px solid var(--line); margin: 16px 0; }
+.bc-root .bc-md code { font-family: var(--mono); font-size: .92em; padding: 1px 4px; border-radius: 4px;
+  background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.bc-root .msg .body .bc-md ol.md-list,
+.bc-root .msg .body .bc-md ul.md-list { display: block; gap: 0; }
+.bc-root .msg .body .bc-md .md-list li { display: list-item; }
+.bc-root .msg .body .bc-md .md-list li i { display: none; }

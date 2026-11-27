@@ -1,36 +1,14 @@
 import React from 'react'
 import { api } from './api.js'
 import { ArrowIcon, SearchIcon } from './icons.jsx'
+import { Markdown } from './markdown.jsx'
 import { timeLabel } from './ui.jsx'
 
 const SUGGESTIONS = ['写一条跟进微信', '查一下最近的动态', '整理成会前 brief']
 
-function Inline({ text }) {
-  const nodes = []
-  const pattern = /\*\*([^*]+)\*\*|(https?:\/\/[^\s)）]+)/g
-  let last = 0
-  let match
-  let index = 0
-  while ((match = pattern.exec(text))) {
-    if (match.index > last) nodes.push(text.slice(last, match.index))
-    if (match[1]) {
-      nodes.push(<strong key={`b${index}`}>{match[1]}</strong>)
-    } else if (match[2]) {
-      nodes.push(
-        <a key={`a${index}`} href={match[2]} target="_blank" rel="noreferrer">
-          {match[2]}
-        </a>,
-      )
-    }
-    last = match.index + match[0].length
-    index += 1
-  }
-  if (last < text.length) nodes.push(text.slice(last))
-  return nodes
-}
-
+// 会话正文统一走 Markdown 渲染（标题 / 列表 / 引用 / 代码 / 粗体 / 链接）。
 export function Body({ text }) {
-  return <div className="bc-body-text">{text.split('\n').map((line, i) => <React.Fragment key={i}>{i ? <br /> : null}{<Inline text={line} />}</React.Fragment>)}</div>
+  return <Markdown text={text} />
 }
 
 function Live({ running, hasSession, t }) {
