@@ -110,7 +110,7 @@ docs/screenshots/  README 用的界面截图
 
 最新版本的新增内容摘要（完整历史见 [CHANGELOG.md](CHANGELOG.md)）：
 
-- **Unreleased**：自定义分类、研究记录 Markdown 结构化、会话三层兜底、我的名片恢复表单编辑、区块按钮改胶囊、JSON 报错人话提示。
+- **0.4.1**：自定义分类；研究记录 Markdown 结构化（老记录自动整理）；会话三层兜底（2000 条 + `.bak` + 会话回读/重建）；我的名片恢复表单编辑；区块按钮改胶囊；工具调用 JSON 报错人话提示；补 LICENSE + CHANGELOG。
 - **0.4.0**：我的名片改为会话式提问；会话 Markdown 渲染（含表格）；隐藏原生滚动条；插件补 `⌘R` 刷新。
 - **0.3.x**：包改名 `dsh-business-agent`（旧包已 deprecate）；README 截图与链接整理。
 

@@ -1,6 +1,6 @@
 {
   "name": "dsh-business-agent",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "DeepSeek Harness 插件：人脉助手——私人商业人脉名片墙 +「我的名片」个人档案，左侧档案 + 右侧 DSH 会话。",
   "author": "Lu Shi <shilu@aicoda.tech> (https://github.com/shlan28)",
   "repository": {
