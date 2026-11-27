@@ -27,7 +27,7 @@
 3. 安装完成后按提示重启 DSH。
 4. 侧栏出现「人脉助手」，点开即可。
 
-完整安装 / 更新 / 排障见 [docs/deploy.md](../docs/deploy.md)。
+更新：本地目录改完重启 DSH 即可；停用、卸载、回滚走插件面板（卸载后按上面四步重装）。
 
 > 2026-11-27 已用 `plugin_manager` 重新装到本机 `desktop` profile（`application: applied`，bundle `dsh-business-cards@0.1.0` 已启用，link 指向本目录），Host 工具已生效。侧栏若还没出现「人脉助手」，**刷新页面（Cmd+R）**让浏览器加载客户端模块。
 >
