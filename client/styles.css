@@ -556,3 +556,8 @@
 .bc-root .bc-type-remove:disabled { opacity: .35; cursor: default; }
 .bc-root .bc-field-link { margin-left: 8px; font-family: var(--mono); font-size: 7.5px; letter-spacing: .06em;
   color: var(--lav); text-decoration: underline; text-underline-offset: 2px; background: none; border: 0; padding: 0; }
+
+/* 研究文档：元信息一行（检索时间 + 这轮关注点） */
+.bc-root .bc-doc-meta { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline;
+  margin-top: 10px; font-size: 8px; letter-spacing: .06em; color: var(--faint); }
+.bc-root .bc-doc-meta .focus { color: var(--lav); overflow-wrap: anywhere; }

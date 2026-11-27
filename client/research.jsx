@@ -1,6 +1,7 @@
 import React from 'react'
 import { Body } from './chat.jsx'
-import { dateLabel, siteOf, timeLabel } from './ui.jsx'
+import { formatResearchSummary } from './research-format.js'
+import { dateLabel, relativeTime, siteOf, timeLabel } from './ui.jsx'
 
 /** 左栏的研究文档列表：一行 = 一次检索。 */
 export function ResearchList({ docs, t, onOpen }) {
@@ -65,10 +66,13 @@ export function ResearchModal({ doc, t, onClose }) {
           <button className="bc-editor-close" onClick={onClose} aria-label={t('收起')}>×</button>
         </div>
 
-        {doc.focus ? <div className="bc-doc-focus mono">FOCUS · {doc.focus}</div> : null}
+        <div className="bc-doc-meta mono">
+          <span>{t('检索于')} {dateLabel(doc.at)} {timeLabel(doc.at)}</span>
+          {doc.focus ? <span className="focus">FOCUS · {doc.focus}</span> : null}
+        </div>
 
         <div className="bc-doc-body">
-          <Body text={doc.summary} />
+          <Body text={formatResearchSummary(doc.summary)} />
         </div>
 
         <div className="bc-doc-sources">
@@ -89,7 +93,7 @@ export function ResearchModal({ doc, t, onClose }) {
 
         <div className="bc-editor-foot">
           <span className="bc-editor-hint">
-            {t('检索于')} {dateLabel(doc.at)} {timeLabel(doc.at)}
+            {t('共')} {sources.length} {t('来源')} · {t('更新于')} {relativeTime(doc.at)}
           </span>
           <div style={{ display: 'flex', gap: 10 }}>
             <button className="bc-btn" onClick={copy}>{copied ? t('已复制') : t('复制正文')}</button>

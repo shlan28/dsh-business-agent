@@ -171,8 +171,9 @@ export function chatPrompt(contact, text, kind = 'chat', me = null, types = []) 
     ? '\n这次是研究请求，必须真的联网检索（搜索网页 / 抓取页面），不能只靠已有记忆：'
       + '\n1) 搜索 + 抓取合计最多 6 次，够 3 条可靠来源就收尾，别逐个页面翻下去；'
       + '\n2) 正文区分「事实（有来源）」和「推测」，重要结论后标注来源；'
-      + '\n3) 最后调用 business_contact_research_save 追加一条新记录：summary 控制在 800 字以内，sources 直接传 URL 字符串数组（2-5 条），title 一句话概括重点；'
-      + '\n4) 保存工具如果报错/参数被拒，把 summary 压到 400 字以内、来源减到 3 条再试一次；'
+      + '\n3) 最后调用 business_contact_research_save 追加一条新记录：summary 写成 Markdown 文档（800-1500 字，别缩水成三句话），sources 直接传 URL 字符串数组（2-5 条），title 一句话概括重点；'
+      + '\n   记录结构固定为：`## 一句话结论` + `## 事实（附来源）`（列表，写清日期、数字、原话，能放表格就放表格）+ `## 判断（推测）` + `## 下一步动作`（编号列表，具体到做什么、什么时候）。'
+      + '\n4) 保存工具如果报错/参数被拒，先把 summary 压到 500 字以内、来源减到 3 条再试一次，别反复发大段 JSON；'
       + '\n5) 如果一条可靠来源都搜不到，就在对话里说明搜不到，不要调用保存工具、不要编造来源。'
     : ''
   return `${mine ? `${mine}\n\n` : ''}${dossier(contact, types)}\n\n${RULES}${mineFocus}${research}${matching}\n\n用户：${text}`

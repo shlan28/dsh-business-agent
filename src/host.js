@@ -770,13 +770,13 @@ export function apply(ctx, config = {}) {
       {
         name: 'business_contact_research_save',
         description:
-          'Append ONE research record (a dated document with its sources) to a contact card. Each research turn adds a new record; never overwrite earlier ones. Requires at least one real HTTP(S) source found via web search — if nothing could be found, do not call this tool. Keep variables small: pass source URLs as plain strings, and keep summary under 800 characters; if the call fails, retry once with a shorter summary.',
+          'Append ONE research record (a dated document with its sources) to a contact card. Each research turn adds a new record; never overwrite earlier ones. Requires at least one real HTTP(S) source found via web search — if nothing could be found, do not call this tool. Write summary as a Markdown document (800-1500 characters) with the sections `## 一句话结论`, `## 事实（附来源）`, `## 判断（推测）`, `## 下一步动作`; use lists/tables where they help. Pass source URLs as plain strings. If the call fails, retry once with a shorter summary.',
         parameters: {
           type: 'object',
           additionalProperties: false,
           properties: {
             id: { type: 'string', description: 'Contact id or exact name.' },
-            summary: { type: 'string', description: 'The brief itself, at most 800 Chinese characters; mark facts vs. guesses.' },
+            summary: { type: 'string', description: 'The record itself, 800-1500 Chinese characters, as Markdown with sections: 一句话结论 / 事实（附来源）/ 判断（推测）/ 下一步动作.' },
             title: { type: 'string', description: 'One-line title for this record, e.g. "近半年投资方向".' },
             focus: { type: 'string', description: 'What this round was asked to look into.' },
             sources: {

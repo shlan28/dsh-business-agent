@@ -53,9 +53,10 @@ test('research prompt tells the model to filter by my goals', () => {
 test('research prompt caps tool calls, summary length and asks for URL strings', () => {
   const text = chatPrompt(contact, '最近的公开动态', 'research', null)
   assert.match(text, /最多 6 次/)
-  assert.match(text, /800 字以内/)
+  assert.match(text, /800-1500 字/)
   assert.match(text, /URL 字符串数组/)
   assert.match(text, /再试一次/)
+  assert.match(text, /## 一句话结论/)
 })
 
 test('my-card chat prompt lists the missing questions one at a time', async () => {
