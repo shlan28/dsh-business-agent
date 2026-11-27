@@ -461,3 +461,21 @@
   padding-bottom: 7px; margin-bottom: 7px; }
 .bc-root .me-pending button { flex: none; font-size: 8px; }
 .bc-root .me-chat .msgs { padding-top: 22px; }
+
+/* 会话区：不要原生滚动条（滚轮照常滚），并避免任何横向溢出 */
+.bc-root .msgs { overflow-x: hidden; overflow-y: auto; scrollbar-width: none; -ms-overflow-style: none; min-width: 0; }
+.bc-root .msgs::-webkit-scrollbar { width: 0; height: 0; }
+.bc-root .chat, .bc-root .composer, .bc-root .composer .box { min-width: 0; max-width: 100%; }
+.bc-root .msgs .msg,
+.bc-root .msgs .msg.me,
+.bc-root .msgs .msg .body,
+.bc-root .bc-body-text { overflow-wrap: anywhere; }
+.bc-root .msgs .msg .body a { overflow-wrap: anywhere; word-break: break-all; }
+.bc-root .me-qs, .bc-root .sugg { min-width: 0; }
+.bc-root .me-q { max-width: 100%; overflow-wrap: anywhere; }
+
+/* 窄屏时详情页整页滚动也不画原生条（仍可滚） */
+@media (max-width: 820px) {
+  .bc-root .dbody { scrollbar-width: none; -ms-overflow-style: none; }
+  .bc-root .dbody::-webkit-scrollbar { width: 0; height: 0; }
+}
