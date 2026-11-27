@@ -83,6 +83,8 @@ npm test                           # 存储 / Host 集成 / 客户端 bundle / �
 npm run preview                    # 真实组件 + 假后端，生成 test/preview/index.html
 ```
 
+改完代码后：**只改了 `client/` 就用 `⌘R` / `Ctrl+R` 刷新界面**（打包版 DSH 的桌面菜单里没有 reload 项，这个快捷键是插件在客户端补的，只拦 ⌘/Ctrl+R，其它按键不动）；**动了 `src/` 必须重启 DSH**（Host 在应用进程里）。
+
 预览页 URL 参数：`?open=c_shen` 打开详情、`&flip` 翻卡、`?theme=dark` 暗色、`?editor` 打开新增、`&research` 触发研究、`?me` 打开我的名片、`?noprofile` 看首次引导、`&send` 自动发一条消息。
 
 ## 限制 / 待验证
